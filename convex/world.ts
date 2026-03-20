@@ -206,7 +206,7 @@ export const gameDescriptions = query({
   handler: async (ctx, args) => {
     const playerDescriptions = await ctx.db
       .query('playerDescriptions')
-      .withIndex('worldId_gone', (q) => q.eq('worldId', args.worldId).lt('gone', true))
+      .withIndex('worldId_active', (q) => q.eq('worldId', args.worldId).eq('active', true))
       .collect();
     const agentDescriptions = await ctx.db
       .query('agentDescriptions')

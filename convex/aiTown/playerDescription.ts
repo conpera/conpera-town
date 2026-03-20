@@ -6,7 +6,7 @@ export const serializedPlayerDescription = {
   name: v.string(),
   description: v.string(),
   character: v.string(),
-  gone: v.optional(v.boolean()),
+  active: v.optional(v.boolean()),
 };
 export type SerializedPlayerDescription = ObjectType<typeof serializedPlayerDescription>;
 
@@ -15,25 +15,25 @@ export class PlayerDescription {
   name: string;
   description: string;
   character: string;
-  gone: boolean;
+  active: boolean;
 
   constructor(serialized: SerializedPlayerDescription) {
-    const { playerId, name, description, character, gone } = serialized;
+    const { playerId, name, description, character, active } = serialized;
     this.playerId = parseGameId('players', playerId);
     this.name = name;
     this.description = description;
     this.character = character;
-    this.gone = gone ?? false;
+    this.active = active ?? true;
   }
 
   serialize(): SerializedPlayerDescription {
-    const { playerId, name, description, character, gone } = this;
+    const { playerId, name, description, character, active } = this;
     return {
       playerId,
       name,
       description,
       character,
-      gone,
+      active,
     };
   }
 }

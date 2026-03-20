@@ -228,6 +228,7 @@ export class Player {
       playerId,
       new PlayerDescription({
         playerId,
+        active: true,
         character,
         description,
         name,
@@ -248,7 +249,7 @@ export class Player {
     game.world.players.delete(this.id);
     const playerDescription = game.playerDescriptions.get(this.id);
     if (playerDescription) {
-      playerDescription.gone = true;
+      playerDescription.active = false;
       game.descriptionsModified = true;
     }
   }

@@ -37,7 +37,7 @@ export const aiTownTables = {
     ...serializedPlayerDescription,
   })
     .index('worldId', ['worldId', 'playerId'])
-    .index('worldId_gone', ['worldId', 'gone']),
+    .index('worldId_active', ['worldId', 'active']),
   agentDescriptions: defineTable({
     worldId: v.id('worlds'),
     ...serializedAgentDescription,
