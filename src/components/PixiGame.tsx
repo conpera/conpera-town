@@ -108,7 +108,7 @@ export const PixiGame = (props: {
         onpointerup={onMapPointerUp}
         onpointerdown={onMapPointerDown}
       />
-      <LocationMarkers worldId={props.worldId} tileDim={tileDim} />
+      <LocationMarkers worldId={props.worldId} tileDim={tileDim} onClick={props.setSelectedElement} />
       {players.map(
         (p) =>
           // Only show the path for the human player in non-debug mode.
