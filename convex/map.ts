@@ -20,6 +20,7 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { playerId } from './aiTown/ids';
+import { insertInput } from './aiTown/insertInput';
 import {
   SHOP_POSITION,
   WORKPLACE_POSITION,
@@ -426,17 +427,13 @@ export const resetEconomy = mutation({
     money: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const world = await ctx.db.get(args.worldId);
-    if (!world) throw new Error(`World not found`);
     const resetHunger = args.hunger ?? 100;
     const resetMoney = args.money ?? 100;
-    const updated = world.players.map((p: any) => ({
-      ...p,
+    // Use input system so the engine applies it during its tick cycle
+    await insertInput(ctx, args.worldId, 'resetPlayerEconomy', {
       hunger: resetHunger,
       money: resetMoney,
-      totalTokensUsed: 0,
-    }));
-    await ctx.db.patch(args.worldId, { players: updated });
-    return { playersReset: updated.length, hunger: resetHunger, money: resetMoney };
+    });
+    return { hunger: resetHunger, money: resetMoney };
   },
 });

@@ -183,6 +183,23 @@ export const agentInputs = {
     },
   }),
 
+  // Economy: Reset all players' hunger/money/tokens
+  resetPlayerEconomy: inputHandler({
+    args: {
+      hunger: v.number(),
+      money: v.number(),
+    },
+    handler: (game, now, args) => {
+      for (const player of game.world.players.values()) {
+        player.hunger = args.hunger;
+        player.money = args.money;
+        player.totalTokensUsed = 0;
+      }
+      console.log(`Reset all players: hunger=${args.hunger}, money=${args.money}`);
+      return null;
+    },
+  }),
+
   // Economy: Agent buys food at the shop
   // Accepts optional position override for dynamic POI support
   agentBuyFood: inputHandler({
