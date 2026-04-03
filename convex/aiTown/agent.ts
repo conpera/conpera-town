@@ -395,26 +395,12 @@ export const recordTokenUsage = internalMutation({
       timestamp: Date.now(),
     });
 
-    // Update player's hunger and totalTokensUsed in the world document
-    const world = await ctx.db.get(args.worldId);
-    if (!world) return;
-    const playerIdx = world.players.findIndex((p: any) => p.id === args.playerId);
-    if (playerIdx === -1) return;
-
-    const player = world.players[playerIdx];
-    const tokensPerHungerPoint = 100; // matches TOKENS_PER_HUNGER_POINT
-    const hungerCost = Math.floor(args.totalTokens / tokensPerHungerPoint);
-    const newHunger = Math.max(0, (player.hunger ?? 100) - hungerCost);
-    const newTotalTokens = (player.totalTokensUsed ?? 0) + args.totalTokens;
-
-    const updatedPlayers = [...world.players];
-    updatedPlayers[playerIdx] = {
-      ...player,
-      hunger: newHunger,
-      totalTokensUsed: newTotalTokens,
-    };
-
-    await ctx.db.patch(args.worldId, { players: updatedPlayers });
+    // Send an input to the engine to update player economy state
+    // (can't patch world doc directly — engine replaces it each step)
+    await insertInput(ctx, args.worldId, 'agentConsumeTokens', {
+      playerId: args.playerId,
+      totalTokens: args.totalTokens,
+    });
   },
 });
 

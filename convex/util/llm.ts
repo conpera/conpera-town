@@ -149,23 +149,36 @@ export async function chatCompletion(
   if (config.stopWords) stopWords.push(...config.stopWords);
   console.log(body);
   let usage: TokenUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  // Only send standard OpenAI fields to avoid API compatibility issues
+  const requestBody = {
+    model: body.model,
+    messages: body.messages,
+    ...(body.max_tokens && { max_tokens: body.max_tokens }),
+    ...(body.temperature != null && { temperature: body.temperature }),
+    ...(body.top_p != null && { top_p: body.top_p }),
+    ...(stopWords.length > 0 && { stop: stopWords }),
+    ...(body.stream && { stream: body.stream }),
+  };
   const {
     result: content,
     retries,
     ms,
   } = await retryWithBackoff(async () => {
-    const result = await fetch(config.url + '/v1/chat/completions', {
+    const fetchUrl = config.url + '/v1/chat/completions';
+    const fetchBody = JSON.stringify(requestBody);
+    const result = await fetch(fetchUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'ai-town/1.0',
         ...AuthHeaders(),
       },
 
-      body: JSON.stringify(body),
+      body: fetchBody,
     });
     if (!result.ok) {
       const error = await result.text();
-      console.error({ error });
+      console.error(`[LLM] Error ${result.status}: ${error.substring(0, 200)}`);
       if (result.status === 404 && config.provider === 'ollama') {
         await tryPullOllama(body.model!, error);
       }
@@ -236,6 +249,7 @@ export async function fetchEmbeddingBatch(texts: string[]) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'ai-town/1.0',
         ...AuthHeaders(),
       },
 
@@ -278,6 +292,7 @@ export async function fetchModeration(content: string) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'ai-town/1.0',
         ...AuthHeaders(),
       },
 

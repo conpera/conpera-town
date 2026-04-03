@@ -26,17 +26,22 @@ export async function startConversationMessage(
       conversationId,
     },
   );
-  const embedding = await embeddingsCache.fetch(
-    ctx,
-    `${player.name} is talking to ${otherPlayer.name}`,
-  );
-
-  const memories = await memory.searchMemories(
-    ctx,
-    player.id as GameId<'players'>,
-    embedding,
-    Number(process.env.NUM_MEMORIES_TO_SEARCH) || NUM_MEMORIES_TO_SEARCH,
-  );
+  // Try to fetch memories, but gracefully degrade if embeddings fail
+  let memories: memory.Memory[] = [];
+  try {
+    const embedding = await embeddingsCache.fetch(
+      ctx,
+      `${player.name} is talking to ${otherPlayer.name}`,
+    );
+    memories = await memory.searchMemories(
+      ctx,
+      player.id as GameId<'players'>,
+      embedding,
+      Number(process.env.NUM_MEMORIES_TO_SEARCH) || NUM_MEMORIES_TO_SEARCH,
+    );
+  } catch (e) {
+    console.warn(`Failed to fetch memories for ${player.name}, continuing without: ${e}`);
+  }
 
   const memoryWithOtherPlayer = memories.find(
     (m) => m.data.type === 'conversation' && m.data.playerIds.includes(otherPlayerId),
@@ -53,13 +58,16 @@ export async function startConversationMessage(
     );
   }
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
-  prompt.push(lastPrompt);
 
   const { content, usage } = await chatCompletion({
     messages: [
       {
         role: 'system',
         content: prompt.join('\n'),
+      },
+      {
+        role: 'user',
+        content: lastPrompt,
       },
     ],
     max_tokens: 300,
@@ -93,11 +101,16 @@ export async function continueConversationMessage(
   );
   const now = Date.now();
   const started = new Date(conversation.created);
-  const embedding = await embeddingsCache.fetch(
-    ctx,
-    `What do you think about ${otherPlayer.name}?`,
-  );
-  const memories = await memory.searchMemories(ctx, player.id as GameId<'players'>, embedding, 3);
+  let memories: memory.Memory[] = [];
+  try {
+    const embedding = await embeddingsCache.fetch(
+      ctx,
+      `What do you think about ${otherPlayer.name}?`,
+    );
+    memories = await memory.searchMemories(ctx, player.id as GameId<'players'>, embedding, 3);
+  } catch (e) {
+    console.warn(`Failed to fetch memories for ${player.name}, continuing without: ${e}`);
+  }
   const prompt = [
     `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}.`,
     `The conversation started at ${started.toLocaleString()}. It's now ${now.toLocaleString()}.`,

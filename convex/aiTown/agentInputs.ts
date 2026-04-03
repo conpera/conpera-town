@@ -164,6 +164,25 @@ export const agentInputs = {
     },
   }),
 
+  // Economy: Update player hunger/tokens after LLM call
+  agentConsumeTokens: inputHandler({
+    args: {
+      playerId: v.string(),
+      totalTokens: v.number(),
+    },
+    handler: (game, now, args) => {
+      const playerGameId = parseGameId('players', args.playerId);
+      const player = game.world.players.get(playerGameId);
+      if (!player) {
+        console.warn(`Player ${args.playerId} not found for token consumption`);
+        return null;
+      }
+      player.consumeTokens(args.totalTokens);
+      console.log(`Player ${args.playerId} consumed ${args.totalTokens} tokens: hunger=${player.hunger}, totalTokens=${player.totalTokensUsed}`);
+      return null;
+    },
+  }),
+
   // Economy: Agent buys food at the shop
   agentBuyFood: inputHandler({
     args: {

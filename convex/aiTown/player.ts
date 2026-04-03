@@ -58,10 +58,10 @@ export const serializedPlayer = {
   facing: vector,
   speed: v.number(),
 
-  // Economy system
-  hunger: v.number(),        // 0-100, decreases with token usage
-  money: v.number(),         // current money balance
-  totalTokensUsed: v.number(), // cumulative tokens consumed
+  // Economy system (optional for backward compatibility with existing data)
+  hunger: v.optional(v.number()),        // 0-100, decreases with token usage
+  money: v.optional(v.number()),         // current money balance
+  totalTokensUsed: v.optional(v.number()), // cumulative tokens consumed
 };
 export type SerializedPlayer = ObjectType<typeof serializedPlayer>;
 
