@@ -130,67 +130,73 @@ export const agentDoSomething = internalAction({
     const hunger = player.hunger ?? 100;
     const money = player.money ?? 100;
 
-    // Priority 1: If starving and have money, go to shop
-    if (hunger <= HUNGER_CRITICAL && money >= FOOD_COST) {
-      console.log(`Agent ${agent.id} is hungry (${hunger}), heading to shop`);
-      await sleep(Math.random() * 1000);
-      await ctx.runMutation(api.aiTown.main.sendInput, {
-        worldId: args.worldId,
-        name: 'finishDoSomething',
-        args: {
-          operationId: args.operationId,
-          agentId: agent.id,
-          destination: SHOP_POSITION,
-          activity: {
-            description: 'heading to the shop to buy food',
-            emoji: '🏪',
-            until: now + 5_000,
-          },
-        },
-      });
-      return;
-    }
+    // Skip economy actions if already doing an economy activity (heading to shop/work)
+    const currentActivity = player.activity?.description ?? '';
+    const alreadyDoingEconomy = currentActivity.includes('heading to') || currentActivity.includes('buying') || currentActivity.includes('working');
 
-    // Priority 2: If hungry but no money, go work
-    if (hunger <= HUNGER_CRITICAL && money < FOOD_COST) {
-      console.log(`Agent ${agent.id} is hungry and broke, heading to work`);
-      await sleep(Math.random() * 1000);
-      await ctx.runMutation(api.aiTown.main.sendInput, {
-        worldId: args.worldId,
-        name: 'finishDoSomething',
-        args: {
-          operationId: args.operationId,
-          agentId: agent.id,
-          destination: WORKPLACE_POSITION,
-          activity: {
-            description: 'heading to work to earn money',
-            emoji: '🏢',
-            until: now + 5_000,
+    if (!alreadyDoingEconomy) {
+      // Priority 1: If starving and have money, go to shop
+      if (hunger <= HUNGER_CRITICAL && money >= FOOD_COST) {
+        console.log(`Agent ${agent.id} is hungry (${hunger}), heading to shop`);
+        await sleep(Math.random() * 1000);
+        await ctx.runMutation(api.aiTown.main.sendInput, {
+          worldId: args.worldId,
+          name: 'finishDoSomething',
+          args: {
+            operationId: args.operationId,
+            agentId: agent.id,
+            destination: SHOP_POSITION,
+            activity: {
+              description: 'heading to the shop to buy food',
+              emoji: '🏪',
+              until: now + 60_000,
+            },
           },
-        },
-      });
-      return;
-    }
+        });
+        return;
+      }
 
-    // Priority 3: If low on money (but not starving), go work sometimes
-    if (money < MONEY_LOW && Math.random() < 0.5) {
-      console.log(`Agent ${agent.id} is low on money (${money}), heading to work`);
-      await sleep(Math.random() * 1000);
-      await ctx.runMutation(api.aiTown.main.sendInput, {
-        worldId: args.worldId,
-        name: 'finishDoSomething',
-        args: {
-          operationId: args.operationId,
-          agentId: agent.id,
-          destination: WORKPLACE_POSITION,
-          activity: {
-            description: 'heading to work to earn money',
-            emoji: '🏢',
-            until: now + 5_000,
+      // Priority 2: If hungry but no money, go work
+      if (hunger <= HUNGER_CRITICAL && money < FOOD_COST) {
+        console.log(`Agent ${agent.id} is hungry and broke, heading to work`);
+        await sleep(Math.random() * 1000);
+        await ctx.runMutation(api.aiTown.main.sendInput, {
+          worldId: args.worldId,
+          name: 'finishDoSomething',
+          args: {
+            operationId: args.operationId,
+            agentId: agent.id,
+            destination: WORKPLACE_POSITION,
+            activity: {
+              description: 'heading to work to earn money',
+              emoji: '🏢',
+              until: now + 60_000,
+            },
           },
-        },
-      });
-      return;
+        });
+        return;
+      }
+
+      // Priority 3: If low on money (but not starving), go work sometimes
+      if (money < MONEY_LOW && Math.random() < 0.5) {
+        console.log(`Agent ${agent.id} is low on money (${money}), heading to work`);
+        await sleep(Math.random() * 1000);
+        await ctx.runMutation(api.aiTown.main.sendInput, {
+          worldId: args.worldId,
+          name: 'finishDoSomething',
+          args: {
+            operationId: args.operationId,
+            agentId: agent.id,
+            destination: WORKPLACE_POSITION,
+            activity: {
+              description: 'heading to work to earn money',
+              emoji: '🏢',
+              until: now + 60_000,
+            },
+          },
+        });
+        return;
+      }
     }
 
     // Normal behavior below (original logic)
