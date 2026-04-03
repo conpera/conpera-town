@@ -34,6 +34,21 @@ export default defineSchema({
     .index('byPlayer', ['worldId', 'playerId', 'timestamp'])
     .index('byWorld', ['worldId', 'timestamp']),
 
+  // Points of Interest — dynamic map locations (shop, workplace, etc.)
+  pointsOfInterest: defineTable({
+    worldId: v.id('worlds'),
+    name: v.string(),           // unique name: 'shop', 'workplace', 'tavern', etc.
+    label: v.string(),          // display label: 'SHOP', 'WORK'
+    type: v.string(),           // 'shop' | 'workplace' | 'landmark' | 'custom'
+    position: v.object({ x: v.number(), y: v.number() }),
+    spriteUrl: v.optional(v.string()),  // e.g. '/ai-town/assets/shop.png'
+    labelColor: v.optional(v.string()), // hex color e.g. '#cc6600'
+    config: v.optional(v.any()),        // type-specific config (cost, reward, etc.)
+    active: v.boolean(),
+  })
+    .index('byWorld', ['worldId', 'active'])
+    .index('byName', ['worldId', 'name']),
+
   ...agentTables,
   ...aiTownTables,
   ...engineTables,

@@ -1,9 +1,11 @@
 import { useCallback } from 'react';
 import { Container, Graphics, Sprite, Text } from '@pixi/react';
 import { Graphics as PixiGraphics, TextStyle, Texture } from 'pixi.js';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { Id } from '../../convex/_generated/dataModel';
 import { SHOP_POSITION, WORKPLACE_POSITION } from '../../convex/constants';
 
-// Building sprite dimensions (pixels in source image)
 const BUILDING_WIDTH = 160;
 const BUILDING_HEIGHT = 256;
 
@@ -16,16 +18,13 @@ function BuildingMarker({
 }: {
   position: { x: number; y: number };
   label: string;
-  labelColor: number;
+  labelColor: string;
   textureUrl: string;
   tileDim: number;
 }) {
-  // Center the building on the tile position
-  // Scale building to ~3x3 tiles
   const buildingScale = (tileDim * 3) / BUILDING_WIDTH;
   const x = (position.x - 0.5) * tileDim;
-  const y = (position.y - 3) * tileDim; // offset up so door is at position
-
+  const y = (position.y - 3) * tileDim;
   const labelX = (position.x + 0.5) * tileDim;
   const labelY = (position.y + 1.2) * tileDim;
 
@@ -40,7 +39,8 @@ function BuildingMarker({
     align: 'center',
   });
 
-  // Draw a subtle ground shadow
+  const numColor = parseInt(labelColor.replace('#', ''), 16) || 0x666666;
+
   const drawShadow = useCallback(
     (g: PixiGraphics) => {
       g.clear();
@@ -53,16 +53,15 @@ function BuildingMarker({
     [position, tileDim],
   );
 
-  // Draw label background
   const drawLabelBg = useCallback(
     (g: PixiGraphics) => {
       g.clear();
       const w = label.length * 7 + 12;
-      g.beginFill(labelColor, 0.85);
+      g.beginFill(numColor, 0.85);
       g.drawRoundedRect(labelX - w / 2, labelY - 2, w, 16, 4);
       g.endFill();
     },
-    [labelX, labelY, label, labelColor],
+    [labelX, labelY, label, numColor],
   );
 
   return (
@@ -80,7 +79,7 @@ function BuildingMarker({
       <Text
         text={label}
         style={labelStyle}
-        x={labelX - (label.length * 3.5)}
+        x={labelX - label.length * 3.5}
         y={labelY}
         zIndex={3}
       />
@@ -88,23 +87,48 @@ function BuildingMarker({
   );
 }
 
-export function LocationMarkers({ tileDim }: { tileDim: number }) {
+// Fallback POIs when DB has none yet
+const FALLBACK_POIS = [
+  {
+    name: 'shop',
+    label: 'SHOP',
+    position: SHOP_POSITION,
+    spriteUrl: '/ai-town/assets/shop.png',
+    labelColor: '#cc6600',
+  },
+  {
+    name: 'workplace',
+    label: 'WORK',
+    position: WORKPLACE_POSITION,
+    spriteUrl: '/ai-town/assets/workplace.png',
+    labelColor: '#336633',
+  },
+];
+
+export function LocationMarkers({
+  worldId,
+  tileDim,
+}: {
+  worldId: Id<'worlds'>;
+  tileDim: number;
+}) {
+  const pois = useQuery(api.map.listPOI, { worldId });
+  const markers = pois && pois.length > 0 ? pois : FALLBACK_POIS;
+
   return (
     <Container sortableChildren>
-      <BuildingMarker
-        position={SHOP_POSITION}
-        label="SHOP"
-        labelColor={0xcc6600}
-        textureUrl="/ai-town/assets/shop.png"
-        tileDim={tileDim}
-      />
-      <BuildingMarker
-        position={WORKPLACE_POSITION}
-        label="WORK"
-        labelColor={0x336633}
-        textureUrl="/ai-town/assets/workplace.png"
-        tileDim={tileDim}
-      />
+      {markers.map((poi) =>
+        poi.spriteUrl ? (
+          <BuildingMarker
+            key={poi.name}
+            position={poi.position}
+            label={poi.label}
+            labelColor={poi.labelColor ?? '#666666'}
+            textureUrl={poi.spriteUrl}
+            tileDim={tileDim}
+          />
+        ) : null,
+      )}
     </Container>
   );
 }
