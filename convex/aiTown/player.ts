@@ -98,6 +98,7 @@ export class Player {
   }
 
   consumeTokens(tokens: number) {
+    if (tokens <= 0) return; // guard against negative values
     this.totalTokensUsed += tokens;
     const hungerCost = Math.floor(tokens / TOKENS_PER_HUNGER_POINT);
     this.hunger = Math.max(0, this.hunger - hungerCost);

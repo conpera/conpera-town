@@ -69,7 +69,8 @@ export const tileAt = query({
     }
     const ix = Math.floor(x);
     const iy = Math.floor(y);
-    const bgTiles = map.bgTiles.map((layer: number[][]) => layer[iy]?.[ix] ?? -1);
+    // Both bgTiles and objectTiles use [x][y] indexing
+    const bgTiles = map.bgTiles.map((layer: number[][]) => layer[ix]?.[iy] ?? -1);
     const objTiles = map.objectTiles.map((layer: number[][]) => layer[ix]?.[iy] ?? -1);
     const walkable = objTiles.every((t: number) => t === -1);
     return { inBounds: true, walkable, bgTiles, objTiles, x: ix, y: iy };
@@ -107,7 +108,8 @@ export const findWalkableArea = query({
               if (layer[tx]?.[ty] !== -1) { ok = false; break; }
             }
             if (ok && grassOnly) {
-              const bg = map.bgTiles[0]?.[ty]?.[tx];
+              // bgTiles uses [x][y] indexing
+              const bg = map.bgTiles[0]?.[tx]?.[ty];
               if (bg !== 271) ok = false;
             }
           }
@@ -247,6 +249,23 @@ export const removePOI = mutation({
     if (!poi) throw new Error(`POI "${args.name}" not found`);
     await ctx.db.patch(poi._id, { active: false });
     return { name: args.name, removed: true };
+  },
+});
+
+export const setPOIActive = mutation({
+  args: {
+    worldId: v.id('worlds'),
+    name: v.string(),
+    active: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const poi = await ctx.db
+      .query('pointsOfInterest')
+      .withIndex('byName', (q) => q.eq('worldId', args.worldId).eq('name', args.name))
+      .first();
+    if (!poi) throw new Error(`POI "${args.name}" not found`);
+    await ctx.db.patch(poi._id, { active: args.active });
+    return { name: args.name, active: args.active };
   },
 });
 
