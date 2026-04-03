@@ -376,6 +376,58 @@ export const seedDefaultPOIs = mutation({
   },
 });
 
+// ─── Building Collision ──────────────────────────────────
+
+// Set collision tiles for a building footprint around a POI position.
+// Building sprite covers ~3 wide x 3 tall above the interaction point.
+// The interaction point (door) stays walkable.
+export const setBuildingCollision = mutation({
+  args: {
+    worldId: v.id('worlds'),
+    x: v.number(),        // POI x (door position)
+    y: v.number(),        // POI y (door position)
+    blocked: v.boolean(), // true = place building, false = remove
+  },
+  handler: async (ctx, args) => {
+    const mapDoc = await ctx.db
+      .query('maps')
+      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
+      .first();
+    if (!mapDoc) throw new Error(`No map for world ${args.worldId}`);
+
+    // Building footprint: 3 wide (x-1 to x+1), 3 tall above door (y-3 to y-1)
+    // Door tile (x, y) stays walkable for interaction
+    const footprint: Array<{ x: number; y: number }> = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -3; dy <= -1; dy++) {
+        const tx = Math.floor(args.x) + dx;
+        const ty = Math.floor(args.y) + dy;
+        if (tx >= 0 && tx < mapDoc.width && ty >= 0 && ty < mapDoc.height) {
+          footprint.push({ x: tx, y: ty });
+        }
+      }
+    }
+
+    // Modify objectTiles layer 0
+    const newTiles = mapDoc.objectTiles.map((layer: number[][], li: number) => {
+      if (li !== 0) return layer;
+      const newLayer = layer.map((col: number[], ci: number) => {
+        const matches = footprint.filter((f) => f.x === ci);
+        if (matches.length === 0) return col;
+        const newCol = [...col];
+        for (const m of matches) {
+          newCol[m.y] = args.blocked ? 367 : -1;
+        }
+        return newCol;
+      });
+      return newLayer;
+    });
+
+    await ctx.db.patch(mapDoc._id, { objectTiles: newTiles });
+    return { footprint, blocked: args.blocked };
+  },
+});
+
 // ─── Economy Management ──────────────────────────────────
 
 export const adjustHunger = mutation({
