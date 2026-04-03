@@ -195,50 +195,27 @@ export function InteriorView({
     [scene, offsetX, offsetY, scale, buildingName],
   );
 
-  // Draw furniture items from scene DB
-  const drawFurniture = useCallback(
+  // Draw spawn/exit points only (furniture drawn as sprites)
+  const drawPoints = useCallback(
     (g: PixiGraphics) => {
       g.clear();
-      if (!scene?.furniture) return;
-
+      if (!scene) return;
       const ts = TILE_PX * scale;
 
-      for (const f of scene.furniture) {
-        const fx = offsetX + f.x * ts;
-        const fy = offsetY + f.y * ts;
-        const fw = (f.w ?? 1) * ts;
-        const fh = (f.h ?? 1) * ts;
-        const color = FURN_COLORS[f.type] ?? 0x888888;
-
-        // Fill
-        g.beginFill(color, 0.5);
-        g.lineStyle(2 * scale, 0xffffff, 0.6);
-        g.drawRoundedRect(fx + 1, fy + 1, fw - 2, fh - 2, 3 * scale);
-        g.endFill();
-
-        // Type indicator inner border
-        const typeColor = f.type === 'blocked' ? 0xff4444 : f.type === 'interact' || f.type === 'work' ? 0x44aaff : 0xaa8833;
-        g.lineStyle(1 * scale, typeColor, 0.8);
-        g.drawRoundedRect(fx + 3, fy + 3, fw - 6, fh - 6, 2 * scale);
-      }
-
-      // Spawn point
       if (scene.spawnPoint) {
         const sx = offsetX + scene.spawnPoint.x * ts + ts / 2;
         const sy = offsetY + scene.spawnPoint.y * ts + ts / 2;
         g.lineStyle(0);
-        g.beginFill(0x00ff88, 0.6);
-        g.drawCircle(sx, sy, ts * 0.3);
+        g.beginFill(0x00ff88, 0.5);
+        g.drawCircle(sx, sy, ts * 0.25);
         g.endFill();
       }
-
-      // Exit point
       if (scene.exitPoint) {
         const ex = offsetX + scene.exitPoint.x * ts + ts / 2;
         const ey = offsetY + scene.exitPoint.y * ts + ts / 2;
         g.lineStyle(0);
-        g.beginFill(0xff4444, 0.6);
-        g.drawCircle(ex, ey, ts * 0.3);
+        g.beginFill(0xff4444, 0.5);
+        g.drawCircle(ex, ey, ts * 0.25);
         g.endFill();
       }
     },
@@ -296,33 +273,34 @@ export function InteriorView({
       {/* Room tilemap from DB */}
       <Graphics draw={drawRoom} zIndex={102} />
 
-      {/* Furniture overlay from DB */}
-      <Graphics draw={drawFurniture} zIndex={103} />
+      {/* Spawn/Exit markers */}
+      <Graphics draw={drawPoints} zIndex={103} />
 
-      {/* Furniture sprites + labels */}
+      {/* Furniture sprites — tile 32x32 sprite across each furniture cell */}
       {scene?.furniture?.map((f: any, i: number) => {
         const spriteUrl = getFurnSprite(f.name);
-        const fx = offsetX + f.x * ts;
-        const fy = offsetY + f.y * ts;
-        const fw = (f.w ?? 1) * ts;
-        const fh = (f.h ?? 1) * ts;
+        if (!spriteUrl) return null;
+        const fw = f.w ?? 1;
+        const fh = f.h ?? 1;
+        // Render one sprite per tile cell for clean pixel-perfect tiling
+        const tiles = [];
+        for (let dx = 0; dx < fw; dx++) {
+          for (let dy = 0; dy < fh; dy++) {
+            tiles.push(
+              <Sprite
+                key={`${i}-${dx}-${dy}`}
+                texture={Texture.from(spriteUrl)}
+                x={offsetX + (f.x + dx) * ts}
+                y={offsetY + (f.y + dy) * ts}
+                width={ts}
+                height={ts}
+              />,
+            );
+          }
+        }
         return (
           <Container key={`furn-${i}`} zIndex={104}>
-            {spriteUrl && (
-              <Sprite
-                texture={Texture.from(spriteUrl)}
-                x={fx}
-                y={fy}
-                width={fw}
-                height={fh}
-              />
-            )}
-            <Text
-              text={f.name}
-              style={furnLabelStyle}
-              x={fx + 2}
-              y={fy + 1}
-            />
+            {tiles}
           </Container>
         );
       })}
