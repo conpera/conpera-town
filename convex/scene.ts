@@ -90,8 +90,8 @@ export const getSceneForPOI = query({
   },
 });
 
-// Internal query for agent perception
-export const perceiveRoom = internalQuery({
+// Room perception — used by AI agents and /map perceive command
+export const perceiveRoom = query({
   args: { worldId: v.id('worlds'), sceneName: v.string() },
   handler: async (ctx, args) => {
     const scene = await ctx.db
