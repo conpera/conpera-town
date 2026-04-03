@@ -184,10 +184,14 @@ export const agentInputs = {
   }),
 
   // Economy: Agent buys food at the shop
+  // Accepts optional position override for dynamic POI support
   agentBuyFood: inputHandler({
     args: {
       agentId,
       playerId: v.string(),
+      poiPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
+      foodCost: v.optional(v.number()),
+      hungerRestore: v.optional(v.number()),
     },
     handler: (game, now, args) => {
       const playerGameId = parseGameId('players', args.playerId);
@@ -195,20 +199,20 @@ export const agentInputs = {
       if (!player) {
         throw new Error(`Player ${args.playerId} not found`);
       }
-      // Check if near shop
-      const dist = distance(player.position, SHOP_POSITION);
+      const shopPos = args.poiPosition ?? SHOP_POSITION;
+      const cost = args.foodCost ?? FOOD_COST;
+      const restore = args.hungerRestore ?? FOOD_HUNGER_RESTORE;
+      const dist = distance(player.position, shopPos);
       if (dist > INTERACTION_DISTANCE) {
         console.log(`Player ${args.playerId} too far from shop (${dist.toFixed(1)})`);
         return null;
       }
-      // Check if has money
-      if (player.money < FOOD_COST) {
+      if (player.money < cost) {
         console.log(`Player ${args.playerId} can't afford food (${player.money})`);
         return null;
       }
-      // Buy food
-      player.money -= FOOD_COST;
-      player.hunger = Math.min(100, player.hunger + FOOD_HUNGER_RESTORE);
+      player.money -= cost;
+      player.hunger = Math.min(100, player.hunger + restore);
       console.log(`Player ${args.playerId} bought food: hunger=${player.hunger}, money=${player.money}`);
       return null;
     },
@@ -219,6 +223,8 @@ export const agentInputs = {
     args: {
       agentId,
       playerId: v.string(),
+      poiPosition: v.optional(v.object({ x: v.number(), y: v.number() })),
+      workReward: v.optional(v.number()),
     },
     handler: (game, now, args) => {
       const playerGameId = parseGameId('players', args.playerId);
@@ -226,15 +232,15 @@ export const agentInputs = {
       if (!player) {
         throw new Error(`Player ${args.playerId} not found`);
       }
-      // Check if near workplace
-      const dist = distance(player.position, WORKPLACE_POSITION);
+      const workPos = args.poiPosition ?? WORKPLACE_POSITION;
+      const reward = args.workReward ?? WORK_REWARD;
+      const dist = distance(player.position, workPos);
       if (dist > INTERACTION_DISTANCE) {
         console.log(`Player ${args.playerId} too far from workplace (${dist.toFixed(1)})`);
         return null;
       }
-      // Earn money
-      player.money += WORK_REWARD;
-      console.log(`Player ${args.playerId} earned ${WORK_REWARD}: money=${player.money}`);
+      player.money += reward;
+      console.log(`Player ${args.playerId} earned ${reward}: money=${player.money}`);
       return null;
     },
   }),

@@ -15,11 +15,6 @@ import {
   MESSAGE_COOLDOWN,
   MIDPOINT_THRESHOLD,
   PLAYER_CONVERSATION_COOLDOWN,
-  SHOP_POSITION,
-  WORKPLACE_POSITION,
-  INTERACTION_DISTANCE,
-  FOOD_COST,
-  WORK_DURATION,
   HUNGER_CRITICAL,
 } from '../constants';
 import { FunctionArgs } from 'convex/server';
@@ -70,35 +65,22 @@ export class Agent {
       console.log(`Timing out ${JSON.stringify(this.inProgressOperation)}`);
       delete this.inProgressOperation;
     }
-    // Economy: Check if agent is near shop or workplace and trigger actions directly
-    const ECONOMY_COOLDOWN = 10_000; // 10s between economy actions
-    const recentEconomy = this.lastEconomyAction && now < this.lastEconomyAction + ECONOMY_COOLDOWN;
-    if (!recentEconomy && !this.inProgressOperation) {
-      const distToShop = distance(player.position, SHOP_POSITION);
-      const distToWork = distance(player.position, WORKPLACE_POSITION);
-
-      if (distToShop < INTERACTION_DISTANCE && player.hunger < 80 && player.money >= FOOD_COST) {
-        // Buy food directly
-        player.money -= FOOD_COST;
-        player.hunger = Math.min(100, player.hunger + 30); // FOOD_HUNGER_RESTORE
-        this.lastEconomyAction = now;
-        player.activity = {
-          description: 'buying food at the shop',
-          emoji: '🍔',
-          until: now + 3000,
-        };
-        console.log(`Agent ${this.id} bought food: hunger=${player.hunger}, money=${player.money}`);
-      } else if (distToWork < INTERACTION_DISTANCE && player.money < 50) {
-        // Earn money directly
-        player.money += 25; // WORK_REWARD
-        this.lastEconomyAction = now;
-        player.activity = {
-          description: 'working hard',
-          emoji: '💼',
-          until: now + WORK_DURATION,
-        };
-        console.log(`Agent ${this.id} worked: money=${player.money}`);
+    // Economy: if starving (hunger=0), skip conversations and force economy action
+    if (player.hunger <= 0) {
+      const doingEconomy = player.activity?.description?.includes('heading to') ||
+        player.activity?.description?.includes('buying') ||
+        player.activity?.description?.includes('working');
+      if (!doingEconomy) {
+        // Force the agent to do something about their hunger via agentDoSomething
+        this.startOperation(game, now, 'agentDoSomething', {
+          worldId: game.worldId,
+          player: player.serialize(),
+          otherFreePlayers: [],
+          agent: this.serialize(),
+          map: game.worldMap.serialize(),
+        });
       }
+      return; // Skip all social behavior when starving
     }
 
     const conversation = game.world.playerConversation(player);
@@ -401,6 +383,23 @@ export const recordTokenUsage = internalMutation({
       playerId: args.playerId,
       totalTokens: args.totalTokens,
     });
+  },
+});
+
+// Query POI positions from DB for agent decision-making
+export const getActivePOIs = internalQuery({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx, args) => {
+    const pois = await ctx.db
+      .query('pointsOfInterest')
+      .withIndex('byWorld', (q) => q.eq('worldId', args.worldId).eq('active', true))
+      .collect();
+    // Build a lookup map: type -> { position, config }
+    const result: Record<string, { position: { x: number; y: number }; config: any }> = {};
+    for (const poi of pois) {
+      result[poi.type] = { position: poi.position, config: poi.config };
+    }
+    return result;
   },
 });
 

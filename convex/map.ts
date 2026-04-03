@@ -355,3 +355,69 @@ export const seedDefaultPOIs = mutation({
     return { created, existing: [...names] };
   },
 });
+
+// ─── Economy Management ──────────────────────────────────
+
+export const adjustHunger = mutation({
+  args: {
+    worldId: v.id('worlds'),
+    playerId,
+    amount: v.number(), // positive = feed, negative = drain
+  },
+  handler: async (ctx, args) => {
+    const world = await ctx.db.get(args.worldId);
+    if (!world) throw new Error(`World not found`);
+    const idx = world.players.findIndex((p: any) => p.id === args.playerId);
+    if (idx === -1) throw new Error(`Player ${args.playerId} not found`);
+    const player = world.players[idx];
+    const oldHunger = player.hunger ?? 100;
+    const newHunger = Math.max(0, Math.min(100, oldHunger + args.amount));
+    const updated = [...world.players];
+    updated[idx] = { ...player, hunger: newHunger };
+    await ctx.db.patch(args.worldId, { players: updated });
+    return { playerId: args.playerId, oldHunger, newHunger };
+  },
+});
+
+export const adjustMoney = mutation({
+  args: {
+    worldId: v.id('worlds'),
+    playerId,
+    amount: v.number(), // positive = give, negative = take
+  },
+  handler: async (ctx, args) => {
+    const world = await ctx.db.get(args.worldId);
+    if (!world) throw new Error(`World not found`);
+    const idx = world.players.findIndex((p: any) => p.id === args.playerId);
+    if (idx === -1) throw new Error(`Player ${args.playerId} not found`);
+    const player = world.players[idx];
+    const oldMoney = player.money ?? 100;
+    const newMoney = Math.max(0, oldMoney + args.amount);
+    const updated = [...world.players];
+    updated[idx] = { ...player, money: newMoney };
+    await ctx.db.patch(args.worldId, { players: updated });
+    return { playerId: args.playerId, oldMoney, newMoney };
+  },
+});
+
+export const resetEconomy = mutation({
+  args: {
+    worldId: v.id('worlds'),
+    hunger: v.optional(v.number()),
+    money: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const world = await ctx.db.get(args.worldId);
+    if (!world) throw new Error(`World not found`);
+    const resetHunger = args.hunger ?? 100;
+    const resetMoney = args.money ?? 100;
+    const updated = world.players.map((p: any) => ({
+      ...p,
+      hunger: resetHunger,
+      money: resetMoney,
+      totalTokensUsed: 0,
+    }));
+    await ctx.db.patch(args.worldId, { players: updated });
+    return { playersReset: updated.length, hunger: resetHunger, money: resetMoney };
+  },
+});

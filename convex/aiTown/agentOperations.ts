@@ -19,9 +19,6 @@ import {
   SHOP_POSITION,
   WORKPLACE_POSITION,
   FOOD_COST,
-  FOOD_HUNGER_RESTORE,
-  WORK_DURATION,
-  WORK_REWARD,
 } from '../constants';
 import { api, internal } from '../_generated/api';
 import { sleep } from '../util/sleep';
@@ -126,18 +123,25 @@ export const agentDoSomething = internalAction({
     const map = new WorldMap(args.map);
     const now = Date.now();
 
-    // Economy-driven behavior: check hunger and money first
+    // Economy-driven behavior: query POI positions from DB
     const hunger = player.hunger ?? 100;
     const money = player.money ?? 100;
 
-    // Skip economy actions if already doing an economy activity (heading to shop/work)
     const currentActivity = player.activity?.description ?? '';
     const alreadyDoingEconomy = currentActivity.includes('heading to') || currentActivity.includes('buying') || currentActivity.includes('working');
 
-    if (!alreadyDoingEconomy) {
-      // Priority 1: If starving and have money, go to shop
-      if (hunger <= HUNGER_CRITICAL && money >= FOOD_COST) {
-        console.log(`Agent ${agent.id} is hungry (${hunger}), heading to shop`);
+    if (!alreadyDoingEconomy && (hunger <= HUNGER_CRITICAL || money < MONEY_LOW)) {
+      // Fetch dynamic POI positions from database
+      const pois = await ctx.runQuery(internal.aiTown.agent.getActivePOIs, {
+        worldId: args.worldId,
+      });
+      const shopPos = pois.shop?.position ?? SHOP_POSITION;
+      const workPos = pois.workplace?.position ?? WORKPLACE_POSITION;
+      const foodCost = pois.shop?.config?.foodCost ?? FOOD_COST;
+
+      // Priority 1: Starving and have money → go to shop
+      if (hunger <= HUNGER_CRITICAL && money >= foodCost) {
+        console.log(`Agent ${agent.id} is hungry (${hunger}), heading to shop at (${shopPos.x},${shopPos.y})`);
         await sleep(Math.random() * 1000);
         await ctx.runMutation(api.aiTown.main.sendInput, {
           worldId: args.worldId,
@@ -145,7 +149,7 @@ export const agentDoSomething = internalAction({
           args: {
             operationId: args.operationId,
             agentId: agent.id,
-            destination: SHOP_POSITION,
+            destination: shopPos,
             activity: {
               description: 'heading to the shop to buy food',
               emoji: '🏪',
@@ -156,9 +160,9 @@ export const agentDoSomething = internalAction({
         return;
       }
 
-      // Priority 2: If hungry but no money, go work
-      if (hunger <= HUNGER_CRITICAL && money < FOOD_COST) {
-        console.log(`Agent ${agent.id} is hungry and broke, heading to work`);
+      // Priority 2: Hungry but no money → go work
+      if (hunger <= HUNGER_CRITICAL && money < foodCost) {
+        console.log(`Agent ${agent.id} is hungry and broke, heading to work at (${workPos.x},${workPos.y})`);
         await sleep(Math.random() * 1000);
         await ctx.runMutation(api.aiTown.main.sendInput, {
           worldId: args.worldId,
@@ -166,7 +170,7 @@ export const agentDoSomething = internalAction({
           args: {
             operationId: args.operationId,
             agentId: agent.id,
-            destination: WORKPLACE_POSITION,
+            destination: workPos,
             activity: {
               description: 'heading to work to earn money',
               emoji: '🏢',
@@ -177,7 +181,7 @@ export const agentDoSomething = internalAction({
         return;
       }
 
-      // Priority 3: If low on money (but not starving), go work sometimes
+      // Priority 3: Low on money → go work sometimes
       if (money < MONEY_LOW && Math.random() < 0.5) {
         console.log(`Agent ${agent.id} is low on money (${money}), heading to work`);
         await sleep(Math.random() * 1000);
@@ -187,7 +191,7 @@ export const agentDoSomething = internalAction({
           args: {
             operationId: args.operationId,
             agentId: agent.id,
-            destination: WORKPLACE_POSITION,
+            destination: workPos,
             activity: {
               description: 'heading to work to earn money',
               emoji: '🏢',
