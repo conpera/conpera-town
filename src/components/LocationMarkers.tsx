@@ -8,18 +8,21 @@ import { SHOP_POSITION, WORKPLACE_POSITION } from '../../convex/constants';
 
 const BUILDING_WIDTH = 160;
 const BUILDING_HEIGHT = 256;
+const INTERIOR_SIZE = 160; // 5x5 tiles at 32px
 
 function BuildingMarker({
   position,
   label,
   labelColor,
   textureUrl,
+  interiorUrl,
   tileDim,
 }: {
   position: { x: number; y: number };
   label: string;
   labelColor: string;
   textureUrl: string;
+  interiorUrl?: string;
   tileDim: number;
 }) {
   const buildingScale = (tileDim * 3) / BUILDING_WIDTH;
@@ -27,6 +30,11 @@ function BuildingMarker({
   const y = (position.y - 3) * tileDim;
   const labelX = (position.x + 0.5) * tileDim;
   const labelY = (position.y + 1.2) * tileDim;
+
+  // Interior: 5x5 tiles centered below the building, starting from door row
+  const interiorScale = (tileDim * 5) / INTERIOR_SIZE;
+  const interiorX = (position.x - 1.5) * tileDim;
+  const interiorY = (position.y + 0.5) * tileDim;
 
   const labelStyle = new TextStyle({
     fontSize: 11,
@@ -67,6 +75,16 @@ function BuildingMarker({
   return (
     <Container sortableChildren>
       <Graphics draw={drawShadow} zIndex={0} />
+      {interiorUrl && (
+        <Sprite
+          texture={Texture.from(interiorUrl)}
+          x={interiorX}
+          y={interiorY}
+          width={INTERIOR_SIZE * interiorScale}
+          height={INTERIOR_SIZE * interiorScale}
+          zIndex={0}
+        />
+      )}
       <Sprite
         texture={Texture.from(textureUrl)}
         x={x}
@@ -88,6 +106,11 @@ function BuildingMarker({
 }
 
 // Fallback POIs when DB has none yet
+const INTERIOR_URLS: Record<string, string> = {
+  shop: '/ai-town/assets/shop_interior.png',
+  workplace: '/ai-town/assets/work_interior.png',
+};
+
 const FALLBACK_POIS = [
   {
     name: 'shop',
@@ -125,6 +148,7 @@ export function LocationMarkers({
             label={poi.label}
             labelColor={poi.labelColor ?? '#666666'}
             textureUrl={poi.spriteUrl}
+            interiorUrl={INTERIOR_URLS[poi.name]}
             tileDim={tileDim}
           />
         ) : null,
