@@ -141,6 +141,7 @@ export const PixiGame = (props: {
       {/* Interior scene overlay — renders at screen coordinates on top of viewport */}
       {selectedPoi && props.selectedBuilding && (
         <InteriorView
+          worldId={props.worldId}
           buildingName={props.selectedBuilding}
           buildingPosition={selectedPoi.position}
           screenWidth={props.width}
