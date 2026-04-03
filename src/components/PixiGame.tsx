@@ -13,6 +13,7 @@ import { toastOnError } from '../toasts.ts';
 import { DebugPath } from './DebugPath.tsx';
 import { PositionIndicator } from './PositionIndicator.tsx';
 import { LocationMarkers } from './LocationMarkers.tsx';
+import { InteriorView } from './InteriorView.tsx';
 import { SHOW_DEBUG_UI } from './Game.tsx';
 import { ServerGame } from '../hooks/serverGame.ts';
 
@@ -24,6 +25,7 @@ export const PixiGame = (props: {
   width: number;
   height: number;
   setSelectedElement: SelectElement;
+  selectedBuilding?: string;
 }) => {
   // PIXI setup.
   const pixiApp = useApp();
@@ -94,40 +96,62 @@ export const PixiGame = (props: {
     });
   }, [humanPlayerId]);
 
+  // Find building position for interior view
+  const pois = useQuery(api.map.listPOI, { worldId: props.worldId });
+  const selectedPoi = props.selectedBuilding
+    ? pois?.find((p) => p.name === props.selectedBuilding)
+    : null;
+
   return (
-    <PixiViewport
-      app={pixiApp}
-      screenWidth={props.width}
-      screenHeight={props.height}
-      worldWidth={width * tileDim}
-      worldHeight={height * tileDim}
-      viewportRef={viewportRef}
-    >
-      <PixiStaticMap
-        map={props.game.worldMap}
-        onpointerup={onMapPointerUp}
-        onpointerdown={onMapPointerDown}
-      />
-      <LocationMarkers worldId={props.worldId} tileDim={tileDim} onClick={props.setSelectedElement} />
-      {players.map(
-        (p) =>
-          // Only show the path for the human player in non-debug mode.
-          (SHOW_DEBUG_UI || p.id === humanPlayerId) && (
-            <DebugPath key={`path-${p.id}`} player={p} tileDim={tileDim} />
-          ),
-      )}
-      {lastDestination && <PositionIndicator destination={lastDestination} tileDim={tileDim} />}
-      {players.map((p) => (
-        <Player
-          key={`player-${p.id}`}
-          game={props.game}
-          player={p}
-          isViewer={p.id === humanPlayerId}
-          onClick={props.setSelectedElement}
-          historicalTime={props.historicalTime}
+    <>
+      <PixiViewport
+        app={pixiApp}
+        screenWidth={props.width}
+        screenHeight={props.height}
+        worldWidth={width * tileDim}
+        worldHeight={height * tileDim}
+        viewportRef={viewportRef}
+      >
+        <PixiStaticMap
+          map={props.game.worldMap}
+          onpointerup={onMapPointerUp}
+          onpointerdown={onMapPointerDown}
         />
-      ))}
-    </PixiViewport>
+        <LocationMarkers worldId={props.worldId} tileDim={tileDim} onClick={props.setSelectedElement} />
+        {players.map(
+          (p) =>
+            // Only show the path for the human player in non-debug mode.
+            (SHOW_DEBUG_UI || p.id === humanPlayerId) && (
+              <DebugPath key={`path-${p.id}`} player={p} tileDim={tileDim} />
+            ),
+        )}
+        {lastDestination && <PositionIndicator destination={lastDestination} tileDim={tileDim} />}
+        {players.map((p) => (
+          <Player
+            key={`player-${p.id}`}
+            game={props.game}
+            player={p}
+            isViewer={p.id === humanPlayerId}
+            onClick={props.setSelectedElement}
+            historicalTime={props.historicalTime}
+          />
+        ))}
+      </PixiViewport>
+
+      {/* Interior scene overlay — renders at screen coordinates on top of viewport */}
+      {selectedPoi && props.selectedBuilding && (
+        <InteriorView
+          buildingName={props.selectedBuilding}
+          buildingPosition={selectedPoi.position}
+          screenWidth={props.width}
+          screenHeight={props.height}
+          players={players}
+          playerDescriptions={props.game.playerDescriptions}
+          onExit={() => props.setSelectedElement(undefined)}
+          onClickPlayer={props.setSelectedElement}
+        />
+      )}
+    </>
   );
 };
 export default PixiGame;

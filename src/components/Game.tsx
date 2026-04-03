@@ -60,6 +60,7 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
                     height={height}
                     historicalTime={historicalTime}
                     setSelectedElement={setSelectedElement}
+                    selectedBuilding={selectedElement?.kind === 'building' ? selectedElement.name : undefined}
                   />
                 </ConvexProvider>
               </Stage>
