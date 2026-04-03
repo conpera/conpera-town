@@ -7,6 +7,15 @@ import { ServerGame } from '../hooks/serverGame';
 import { INTERACTION_DISTANCE } from '../../convex/constants';
 import { distance } from '../../convex/util/geometry';
 
+const FURNITURE_TYPE_COLORS: Record<string, string> = {
+  interact: 'text-blue-400',
+  decor: 'text-yellow-600',
+  blocked: 'text-red-400',
+  work: 'text-blue-400',
+  spawn: 'text-green-400',
+  exit: 'text-red-300',
+};
+
 const INTERIOR_IMAGES: Record<string, string> = {
   shop: '/ai-town/assets/shop_interior.png',
   workplace: '/ai-town/assets/work_interior.png',
@@ -44,6 +53,13 @@ export default function BuildingDetails({
     emoji: '📍',
   };
   const interiorImg = INTERIOR_IMAGES[buildingName];
+
+  // Query scene furniture from DB
+  const sceneName = buildingName === 'shop' ? 'shop_interior' : buildingName === 'workplace' ? 'workplace_interior' : null;
+  const sceneFurniture = useQuery(
+    api.scene.getFurniture,
+    sceneName ? { worldId, sceneName } : 'skip',
+  );
 
   // Find agents near this building
   const players = [...game.world.players.values()];
@@ -131,6 +147,30 @@ export default function BuildingDetails({
             Location: ({poi.position.x}, {poi.position.y})
           </h2>
         </div>
+      )}
+
+      {/* Scene Furniture from DB */}
+      {sceneFurniture && sceneFurniture.length > 0 && (
+        <>
+          <div className="box my-4">
+            <h2 className="bg-brown-700 text-lg text-center">Furniture ({sceneFurniture.length})</h2>
+          </div>
+          <div className="box my-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            <div className="bg-brown-700 p-2 text-xs">
+              {sceneFurniture.map((f: any, i: number) => (
+                <div key={i} className="flex justify-between py-0.5 border-b border-brown-600">
+                  <span>
+                    <span className={FURNITURE_TYPE_COLORS[f.type] || 'text-gray-400'}>[{f.type}]</span>
+                    {' '}{f.name}
+                  </span>
+                  <span className="text-gray-400">
+                    ({f.x},{f.y}) {f.action ? `→ ${f.action}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
       {/* Nearby Agents */}
