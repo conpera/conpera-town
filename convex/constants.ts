@@ -103,8 +103,8 @@ export const WORK_REWARD = 25;         // Money earned per work session
 
 // Map locations for shop and workplace (tile coordinates)
 // Must be on walkable tiles (objmap value === -1)
-export const SHOP_POSITION = { x: 25, y: 35 };
-export const WORKPLACE_POSITION = { x: 40, y: 40 };
+export const SHOP_POSITION = { x: 36, y: 22 };
+export const WORKPLACE_POSITION = { x: 16, y: 44 };
 
 // How close you need to be to interact with shop/workplace
 export const INTERACTION_DISTANCE = 1.5;
