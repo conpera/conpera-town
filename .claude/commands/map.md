@@ -24,6 +24,11 @@ Map inspection, POI management, and economy dashboard for Conpera Town.
 - `/map poi update <name> [--label X] [--sprite URL] [--color HEX]` — Update POI properties
 - `/map poi seed` — Create default shop + workplace if missing
 
+### Economy Management
+- `/map feed <playerId> <amount>` — Adjust agent hunger (+/-)
+- `/map pay <playerId> <amount>` — Adjust agent money (+/-)
+- `/map reset-economy [hunger] [money]` — Reset all agents to initial values
+
 ### Tile Editing
 - `/map block <x> <y>` — Make a tile impassable
 - `/map unblock <x> <y>` — Make a tile walkable
@@ -52,6 +57,11 @@ WORLD_ID=$(npx convex run --no-push world:defaultWorldStatus '{}' 2>&1 | grep -o
 | `poi remove` | `map:removePOI` | `{"worldId":"$WORLD_ID","name":"..."}` |
 | `poi update` | `map:updatePOI` | `{"worldId":"$WORLD_ID","name":"...","label":"..."}` |
 | `poi seed` | `map:seedDefaultPOIs` | `{"worldId":"$WORLD_ID"}` |
+| `poi activate` | `map:setPOIActive` | `{"worldId":"$WORLD_ID","name":"...","active":true}` |
+| `poi deactivate` | `map:setPOIActive` | `{"worldId":"$WORLD_ID","name":"...","active":false}` |
+| `feed P AMT` | `map:adjustHunger` | `{"worldId":"$WORLD_ID","playerId":"P","amount":AMT}` |
+| `pay P AMT` | `map:adjustMoney` | `{"worldId":"$WORLD_ID","playerId":"P","amount":AMT}` |
+| `reset-economy` | `map:resetEconomy` | `{"worldId":"$WORLD_ID"}` |
 | `block X Y` | `map:setTileBlocked` | `{"worldId":"$WORLD_ID","x":X,"y":Y,"blocked":true}` |
 | `unblock X Y` | `map:setTileBlocked` | `{"worldId":"$WORLD_ID","x":X,"y":Y,"blocked":false}` |
 
