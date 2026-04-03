@@ -2,8 +2,6 @@ import { useCallback, useMemo } from 'react';
 import { Container, Graphics, Sprite, Text } from '@pixi/react';
 import { Graphics as PixiGraphics, TextStyle, Texture } from 'pixi.js';
 import { Player as ServerPlayer } from '../../convex/aiTown/player';
-import { Character } from './Character';
-import { characters } from '../../data/characters';
 import { GameId } from '../../convex/aiTown/ids';
 import { PlayerDescription } from '../../convex/aiTown/playerDescription';
 import { INTERACTION_DISTANCE } from '../../convex/constants';
@@ -173,14 +171,23 @@ export function InteriorView({
         cursor="pointer"
       />
 
-      {/* Agents inside the building */}
+      {/* Agents inside the building — rendered as colored dots with names */}
       {nearbyPlayers.map((player, i) => {
         const desc = playerDescriptions.get(player.id);
-        const charData = desc && characters.find((c) => c.name === desc.character);
-        // Position agents in the room walkable area (y: 3-6, x: 2-7)
-        const agentX = offsetX + (2 + (i % 6)) * TILE_PX * scale;
-        const agentY = offsetY + (3 + Math.floor(i / 6)) * TILE_PX * scale;
-        const agentScale = scale * 1.2;
+        const agentX = offsetX + (2 + (i % 6) * 1.2) * TILE_PX * scale;
+        const agentY = offsetY + (4 + Math.floor(i / 6) * 1.5) * TILE_PX * scale;
+        const r = 10 * scale;
+        const colors = [0x4488ff, 0xff6644, 0x44cc66, 0xcc44cc, 0xffaa22];
+        const color = colors[i % colors.length];
+
+        const drawAgent = (g: PixiGraphics) => {
+          g.clear();
+          g.beginFill(color, 0.9);
+          g.drawCircle(0, 0, r);
+          g.endFill();
+          g.lineStyle(2, 0xffffff, 0.8);
+          g.drawCircle(0, 0, r);
+        };
 
         return (
           <Container
@@ -192,21 +199,23 @@ export function InteriorView({
             pointerdown={() => onClickPlayer({ kind: 'player', id: player.id })}
             cursor="pointer"
           >
-            {charData && (
-              <Sprite
-                texture={Texture.from(charData.textureUrl)}
-                width={32 * agentScale}
-                height={32 * agentScale}
-                anchor={{ x: 0.5, y: 0.5 }}
-              />
-            )}
+            <Graphics draw={drawAgent} />
             {desc && (
               <Text
                 text={desc.name}
                 style={nameStyle}
                 x={0}
-                y={16 * agentScale}
+                y={r + 4}
                 anchor={{ x: 0.5, y: 0 }}
+              />
+            )}
+            {player.activity && (
+              <Text
+                text={player.activity.emoji ?? ''}
+                style={new TextStyle({ fontSize: 12 * scale })}
+                x={0}
+                y={-(r + 8)}
+                anchor={{ x: 0.5, y: 1 }}
               />
             )}
           </Container>
