@@ -28,8 +28,8 @@ cd /Users/subway/code/python/项目/openclaw/ai-town
 | `status` | `world:defaultWorldStatus` | Returns worldId, engineId, status, lastViewed |
 | `start` | `testing:resume` | Resumes from stoppedByDeveloper or inactive |
 | `stop` | `testing:stop` | Sets status to stoppedByDeveloper |
-| `kick` | `testing:kick` (internal) | Force engine step if stuck |
-| `reset` | `testing:wipeAllTables` (internal) | **DESTRUCTIVE** — clears everything |
+| `kick` | `testing:kick` | Internal mutation — use `npx convex run testing:kick` (works for internal too in self-hosted) |
+| `reset` | `testing:wipeAllTables` | **DESTRUCTIVE** — `npx convex run testing:wipeAllTables` |
 | `init` | `init` (default export) | `npx convex run init '{"numAgents":5}'` |
 | `health` | Multiple checks | See below |
 

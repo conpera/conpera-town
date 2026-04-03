@@ -27,8 +27,8 @@ WORLD_ID=$(npx convex run --no-push world:defaultWorldStatus '{}' 2>&1 | grep -o
 |---------|----------------|------|
 | `llm` | `testing:testCompletion` | `{}` |
 | `embedding TEXT` | `testing:testEmbedding` | `{"input":"TEXT"}` |
-| `spawn-robots N` | `testing:debugCreatePlayers` | `{"numPlayers":N}` |
-| `random-move` | `testing:randomPositions` | `{}` |
+| `spawn-robots N` | `testing:debugCreatePlayers` (internal) | `{"numPlayers":N}` |
+| `random-move` | `testing:randomPositions` (internal) | `{}` |
 | `engine-logs` | tmux capture | `tmux capture-pane -t ai-town-backend -p -S -50` |
 | `token-stats` | `world:tokenUsageStats` | `{"worldId":"$WORLD_ID","playerId":"..."}` per agent |
 
