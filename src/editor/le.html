@@ -5,6 +5,44 @@
         border: 1px solid black;
         border-radius: 10px;
     }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #1a1a2e; color: #eee; }
+    .tab { background: #16213e; padding: 8px; }
+    .tab button { background: #0f3460; color: #eee; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; margin-right: 4px; }
+    .tab button:hover, .tab button.active { background: #e94560; }
+    .tabcontent { display: none; padding: 8px; }
+
+    /* Scene panel styles */
+    .scene-section { background: #16213e; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
+    .scene-section h3 { margin: 0 0 8px 0; color: #e94560; font-size: 14px; }
+    .scene-section label { display: inline-block; width: 100px; font-size: 13px; }
+    .scene-section input, .scene-section select { background: #0f3460; color: #eee; border: 1px solid #333; padding: 4px 8px; border-radius: 4px; margin: 2px 0; }
+    .scene-section button { background: #e94560; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; margin: 2px; font-size: 12px; }
+    .scene-section button:hover { background: #c0392b; }
+    .scene-section button.secondary { background: #0f3460; }
+    .scene-section button.secondary:hover { background: #1a5276; }
+    .scene-section button.active-mode { background: #27ae60; }
+
+    /* Furniture palette */
+    .furn-item { display: inline-block; padding: 6px 10px; margin: 2px; border-radius: 4px; cursor: pointer; font-size: 11px; border: 2px solid transparent; }
+    .furn-item:hover { border-color: #e94560; }
+    .furn-item.selected { border-color: #e94560; background: rgba(233,69,96,0.2); }
+    .furn-interact { background: rgba(68,136,255,0.3); }
+    .furn-decor { background: rgba(139,105,20,0.3); }
+    .furn-blocked { background: rgba(136,136,136,0.3); }
+
+    /* Floating toolbar */
+    #editor-toolbar { position: fixed; top: 50px; left: 10px; background: rgba(22,33,62,0.95); padding: 8px; border-radius: 8px; z-index: 1000; font-size: 12px; }
+    #editor-toolbar label { margin-right: 8px; }
+    #editor-toolbar button { background: #0f3460; color: #eee; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; margin: 2px; font-size: 11px; }
+    #editor-toolbar button.active-mode { background: #27ae60; }
+
+    /* Status bar */
+    #status-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #16213e; padding: 4px 12px; font-size: 11px; color: #aaa; z-index: 1000; }
+    #status-bar span { margin-right: 16px; }
+
+    /* Validation output */
+    .validation-ok { color: #27ae60; }
+    .validation-err { color: #e94560; }
  </style>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
@@ -13,19 +51,29 @@
 
     <div class="tab">
         <button class="tablinks" onclick="onTab(event, 'edit')">edit</button>
+        <button class="tablinks" onclick="onTab(event, 'scene')">scene</button>
         <button class="tablinks" onclick="onTab(event, 'map')">map</button>
         <button class="tablinks" onclick="onTab(event, 'config')">config</button>
-      </div>
+    </div>
+
+    <!-- Floating toolbar (visible during edit) -->
+    <div id="editor-toolbar">
+        <label><input type="checkbox" id="collision-toggle" onchange="toggleCollision()"> Collision (C)</label>
+        <button id="furniture-btn" onclick="toggleFurnitureMode()">Furniture (B)</button>
+        <button id="spawn-btn" onclick="toggleSpawnMode()">Spawn (P)</button>
+        <button id="exit-btn" onclick="toggleExitMode()">Exit (E)</button>
+        <span id="mode-indicator" style="color:#e94560; margin-left:8px;"></span>
+    </div>
 
 <div id="edit" class="tabcontent">
     <TABLE WIDTH="100%"><TR>
         <TD ALIGN="center"> <!-- first layer of map tiles -->
           <div ID="layer0pane" style="max-height: 480px;max-width:640px;overflow: scroll;">
-          <canvas ID="level0" height="1600px" width="1600px" ></canvas> </div>   
+          <canvas ID="level0" height="1600px" width="1600px" ></canvas> </div>
         </TD>
         <TD ALIGN="center"> <!-- tile set-->
            <div ID="tilesetpane" style="max-height: 600;max-width:800;overflow: scroll;">
-           <CANVAS ID="tileset" width="5632px" height="8672px" STYLE="border: 1px dotted white;"></CANVAS> </div>   
+           <CANVAS ID="tileset" width="5632px" height="8672px" STYLE="border: 1px dotted white;"></CANVAS> </div>
         </TD>
         </TR>
 
@@ -51,6 +99,114 @@
         </div></TD>
         </tr>
     </TABLE>
+</div>
+
+<!-- Scene Tab -->
+<div id="scene" class="tabcontent">
+    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+
+        <!-- Room Settings -->
+        <div class="scene-section" style="min-width:280px;">
+            <h3>Room Settings</h3>
+            <div>
+                <label>Name (slug):</label>
+                <input id="scene-name" placeholder="shop_interior" style="width:150px;">
+            </div>
+            <div>
+                <label>Display Name:</label>
+                <input id="scene-display" placeholder="General Store" style="width:150px;">
+            </div>
+            <div>
+                <label>Room Size:</label>
+                <select id="scene-size" onchange="onSceneSizeChange()">
+                    <option value="8,6">8 x 6 (small)</option>
+                    <option value="10,8" selected>10 x 8 (medium)</option>
+                    <option value="12,10">12 x 10 (large)</option>
+                    <option value="16,12">16 x 12 (xl)</option>
+                    <option value="custom">Custom...</option>
+                </select>
+            </div>
+            <div id="custom-size" style="display:none;">
+                <label>W x H:</label>
+                <input id="scene-w" type="number" value="10" min="4" max="32" style="width:50px;">
+                x <input id="scene-h" type="number" value="8" min="4" max="32" style="width:50px;">
+            </div>
+            <div style="margin-top:8px;">
+                <button onclick="enterSceneMode()">Enter Scene Mode</button>
+                <button class="secondary" onclick="exitSceneMode()">Exit to Map Mode</button>
+            </div>
+        </div>
+
+        <!-- Spawn / Exit Points -->
+        <div class="scene-section" style="min-width:200px;">
+            <h3>Points</h3>
+            <div>
+                <label>Spawn:</label>
+                <span id="spawn-display">not set</span>
+                <button class="secondary" onclick="toggleSpawnMode()">Set (P)</button>
+            </div>
+            <div>
+                <label>Exit:</label>
+                <span id="exit-display">not set</span>
+                <button class="secondary" onclick="toggleExitMode()">Set (E)</button>
+            </div>
+        </div>
+
+        <!-- Convex Integration -->
+        <div class="scene-section" style="min-width:300px;">
+            <h3>Cloud (Convex)</h3>
+            <div>
+                <label>World ID:</label>
+                <input id="convex-world-id" placeholder="m1740pc6j..." style="width:200px;">
+            </div>
+            <div style="margin-top:8px;">
+                <button onclick="onSaveScene()">Save to DB</button>
+                <button class="secondary" onclick="onLoadSceneList()">Load from DB</button>
+                <button class="secondary" onclick="onValidateScene()">Validate</button>
+            </div>
+            <div>
+                <label>Load scene:</label>
+                <select id="scene-list" onchange="onLoadScene()" style="width:200px;">
+                    <option value="">-- select --</option>
+                </select>
+            </div>
+            <div id="validation-output" style="margin-top:8px; font-size:12px;"></div>
+        </div>
+
+        <!-- Furniture Palette -->
+        <div class="scene-section" style="min-width:400px;">
+            <h3>Furniture (B to toggle placement mode)</h3>
+            <div id="furniture-palette">
+                <div class="furn-item furn-interact" data-furn="counter" onclick="selectFurniture(this)">Counter (buy_food)</div>
+                <div class="furn-item furn-interact" data-furn="forge" onclick="selectFurniture(this)">Forge (work)</div>
+                <div class="furn-item furn-interact" data-furn="desk" onclick="selectFurniture(this)">Work Desk (work)</div>
+                <div class="furn-item furn-decor" data-furn="shelf" onclick="selectFurniture(this)">Shelf</div>
+                <div class="furn-item furn-decor" data-furn="chair" onclick="selectFurniture(this)">Chair</div>
+                <div class="furn-item furn-decor" data-furn="bookshelf" onclick="selectFurniture(this)">Bookshelf</div>
+                <div class="furn-item furn-decor" data-furn="plant" onclick="selectFurniture(this)">Plant</div>
+                <div class="furn-item furn-blocked" data-furn="crate" onclick="selectFurniture(this)">Crate</div>
+                <div class="furn-item furn-blocked" data-furn="table" onclick="selectFurniture(this)">Table</div>
+                <div class="furn-item furn-blocked" data-furn="bed" onclick="selectFurniture(this)">Bed</div>
+                <div class="furn-item furn-blocked" data-furn="barrel" onclick="selectFurniture(this)">Barrel</div>
+            </div>
+            <h3 style="margin-top:10px;">Custom Furniture</h3>
+            <div>
+                <input id="furn-custom-name" placeholder="Name" style="width:100px;">
+                <select id="furn-custom-type">
+                    <option value="interact">interact</option>
+                    <option value="decor">decor</option>
+                    <option value="blocked">blocked</option>
+                </select>
+                <input id="furn-custom-action" placeholder="Action" style="width:80px;">
+                W:<input id="furn-custom-w" type="number" value="1" min="1" max="4" style="width:40px;">
+                H:<input id="furn-custom-h" type="number" value="1" min="1" max="4" style="width:40px;">
+                <button onclick="addCustomFurnitureTemplate()">Add</button>
+            </div>
+            <h3 style="margin-top:10px;">Placed Furniture</h3>
+            <div id="placed-furniture-list" style="font-size:11px; max-height:150px; overflow-y:auto;"></div>
+        </div>
+
+    </div>
 </div>
 
 <div id="map" class="tabcontent">
@@ -89,11 +245,17 @@
             <tr>
                 <td> <input type="file" multiple id="tilesetfile"> </td>
             </tr>
-
-
             </table>
 </div>
 
+<!-- Status bar -->
+<div id="status-bar">
+    <span id="status-mode">Mode: Map</span>
+    <span id="status-pos">Pos: -</span>
+    <span id="status-tile">Tile: -</span>
+    <span id="status-scene">Scene: -</span>
+    <span id="status-keys">Keys: S=Save D=Delete F=Fill C=Collision B=Furniture P=Spawn E=Exit</span>
+</div>
 
 </body>
 </html>
