@@ -15,6 +15,12 @@ import {
   MESSAGE_COOLDOWN,
   MIDPOINT_THRESHOLD,
   PLAYER_CONVERSATION_COOLDOWN,
+  SHOP_POSITION,
+  WORKPLACE_POSITION,
+  INTERACTION_DISTANCE,
+  FOOD_COST,
+  WORK_DURATION,
+  HUNGER_CRITICAL,
 } from '../constants';
 import { FunctionArgs } from 'convex/server';
 import { MutationCtx, internalMutation, internalQuery } from '../_generated/server';
@@ -29,6 +35,7 @@ export class Agent {
   toRemember?: GameId<'conversations'>;
   lastConversation?: number;
   lastInviteAttempt?: number;
+  lastEconomyAction?: number;
   inProgressOperation?: {
     name: string;
     operationId: string;
@@ -46,6 +53,7 @@ export class Agent {
         : undefined;
     this.lastConversation = lastConversation;
     this.lastInviteAttempt = lastInviteAttempt;
+    this.lastEconomyAction = serialized.lastEconomyAction;
     this.inProgressOperation = inProgressOperation;
   }
 
@@ -62,6 +70,37 @@ export class Agent {
       console.log(`Timing out ${JSON.stringify(this.inProgressOperation)}`);
       delete this.inProgressOperation;
     }
+    // Economy: Check if agent is near shop or workplace and trigger actions directly
+    const ECONOMY_COOLDOWN = 10_000; // 10s between economy actions
+    const recentEconomy = this.lastEconomyAction && now < this.lastEconomyAction + ECONOMY_COOLDOWN;
+    if (!recentEconomy && !this.inProgressOperation) {
+      const distToShop = distance(player.position, SHOP_POSITION);
+      const distToWork = distance(player.position, WORKPLACE_POSITION);
+
+      if (distToShop < INTERACTION_DISTANCE && player.hunger < 80 && player.money >= FOOD_COST) {
+        // Buy food directly
+        player.money -= FOOD_COST;
+        player.hunger = Math.min(100, player.hunger + 30); // FOOD_HUNGER_RESTORE
+        this.lastEconomyAction = now;
+        player.activity = {
+          description: 'buying food at the shop',
+          emoji: '🍔',
+          until: now + 3000,
+        };
+        console.log(`Agent ${this.id} bought food: hunger=${player.hunger}, money=${player.money}`);
+      } else if (distToWork < INTERACTION_DISTANCE && player.money < 50) {
+        // Earn money directly
+        player.money += 25; // WORK_REWARD
+        this.lastEconomyAction = now;
+        player.activity = {
+          description: 'working hard',
+          emoji: '💼',
+          until: now + WORK_DURATION,
+        };
+        console.log(`Agent ${this.id} worked: money=${player.money}`);
+      }
+    }
+
     const conversation = game.world.playerConversation(player);
     const member = conversation?.participants.get(player.id);
 
@@ -263,6 +302,7 @@ export class Agent {
       toRemember: this.toRemember,
       lastConversation: this.lastConversation,
       lastInviteAttempt: this.lastInviteAttempt,
+      lastEconomyAction: this.lastEconomyAction,
       inProgressOperation: this.inProgressOperation,
     };
   }
@@ -274,6 +314,7 @@ export const serializedAgent = {
   toRemember: v.optional(conversationId),
   lastConversation: v.optional(v.number()),
   lastInviteAttempt: v.optional(v.number()),
+  lastEconomyAction: v.optional(v.number()),
   inProgressOperation: v.optional(
     v.object({
       name: v.string(),
@@ -330,6 +371,50 @@ export const agentSendMessage = internalMutation({
       leaveConversation: args.leaveConversation,
       operationId: args.operationId,
     });
+  },
+});
+
+export const recordTokenUsage = internalMutation({
+  args: {
+    worldId: v.id('worlds'),
+    playerId,
+    operation: v.string(),
+    promptTokens: v.number(),
+    completionTokens: v.number(),
+    totalTokens: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Insert detailed token usage record
+    await ctx.db.insert('tokenUsage', {
+      worldId: args.worldId,
+      playerId: args.playerId,
+      operation: args.operation,
+      promptTokens: args.promptTokens,
+      completionTokens: args.completionTokens,
+      totalTokens: args.totalTokens,
+      timestamp: Date.now(),
+    });
+
+    // Update player's hunger and totalTokensUsed in the world document
+    const world = await ctx.db.get(args.worldId);
+    if (!world) return;
+    const playerIdx = world.players.findIndex((p: any) => p.id === args.playerId);
+    if (playerIdx === -1) return;
+
+    const player = world.players[playerIdx];
+    const tokensPerHungerPoint = 100; // matches TOKENS_PER_HUNGER_POINT
+    const hungerCost = Math.floor(args.totalTokens / tokensPerHungerPoint);
+    const newHunger = Math.max(0, (player.hunger ?? 100) - hungerCost);
+    const newTotalTokens = (player.totalTokensUsed ?? 0) + args.totalTokens;
+
+    const updatedPlayers = [...world.players];
+    updatedPlayers[playerIdx] = {
+      ...player,
+      hunger: newHunger,
+      totalTokensUsed: newTotalTokens,
+    };
+
+    await ctx.db.patch(args.worldId, { players: updatedPlayers });
   },
 });
 

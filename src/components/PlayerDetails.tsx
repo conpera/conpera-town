@@ -221,6 +221,32 @@ export default function PlayerDetails({
           </h2>
         </div>
       )}
+      {/* Economy Stats */}
+      <div className="box my-4">
+        <div className="bg-brown-700 p-2 text-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-16">Hunger:</span>
+            <div className="flex-1 bg-brown-900 rounded h-3 overflow-hidden">
+              <div
+                className={`h-full rounded transition-all ${
+                  player.hunger <= 20 ? 'bg-red-500' : player.hunger <= 50 ? 'bg-yellow-500' : 'bg-green-500'
+                }`}
+                style={{ width: `${player.hunger}%` }}
+              />
+            </div>
+            <span className="w-8 text-right">{player.hunger}</span>
+          </div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-16">Money:</span>
+            <span className="text-yellow-300 font-bold">${player.money}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-16">Tokens:</span>
+            <span className="text-blue-300">{player.totalTokensUsed.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+
       <div className="desc my-6">
         <p className="leading-tight -m-4 bg-brown-700 text-base sm:text-sm">
           {!isMe && playerDescription?.description}

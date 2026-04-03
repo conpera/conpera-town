@@ -8,6 +8,17 @@ import { point } from '../util/types';
 import { Descriptions } from '../../data/characters';
 import { AgentDescription } from './agentDescription';
 import { Agent } from './agent';
+import {
+  FOOD_COST,
+  FOOD_HUNGER_RESTORE,
+  WORK_REWARD,
+  SHOP_POSITION,
+  WORKPLACE_POSITION,
+  INTERACTION_DISTANCE,
+  INITIAL_HUNGER,
+  INITIAL_MONEY,
+} from '../constants';
+import { distance } from '../util/geometry';
 
 export const agentInputs = {
   finishRememberConversation: inputHandler({
@@ -150,6 +161,62 @@ export const agentInputs = {
         }),
       );
       return { agentId };
+    },
+  }),
+
+  // Economy: Agent buys food at the shop
+  agentBuyFood: inputHandler({
+    args: {
+      agentId,
+      playerId: v.string(),
+    },
+    handler: (game, now, args) => {
+      const playerGameId = parseGameId('players', args.playerId);
+      const player = game.world.players.get(playerGameId);
+      if (!player) {
+        throw new Error(`Player ${args.playerId} not found`);
+      }
+      // Check if near shop
+      const dist = distance(player.position, SHOP_POSITION);
+      if (dist > INTERACTION_DISTANCE) {
+        console.log(`Player ${args.playerId} too far from shop (${dist.toFixed(1)})`);
+        return null;
+      }
+      // Check if has money
+      if (player.money < FOOD_COST) {
+        console.log(`Player ${args.playerId} can't afford food (${player.money})`);
+        return null;
+      }
+      // Buy food
+      player.money -= FOOD_COST;
+      player.hunger = Math.min(100, player.hunger + FOOD_HUNGER_RESTORE);
+      console.log(`Player ${args.playerId} bought food: hunger=${player.hunger}, money=${player.money}`);
+      return null;
+    },
+  }),
+
+  // Economy: Agent works at the workplace
+  agentWork: inputHandler({
+    args: {
+      agentId,
+      playerId: v.string(),
+    },
+    handler: (game, now, args) => {
+      const playerGameId = parseGameId('players', args.playerId);
+      const player = game.world.players.get(playerGameId);
+      if (!player) {
+        throw new Error(`Player ${args.playerId} not found`);
+      }
+      // Check if near workplace
+      const dist = distance(player.position, WORKPLACE_POSITION);
+      if (dist > INTERACTION_DISTANCE) {
+        console.log(`Player ${args.playerId} too far from workplace (${dist.toFixed(1)})`);
+        return null;
+      }
+      // Earn money
+      player.money += WORK_REWARD;
+      console.log(`Player ${args.playerId} earned ${WORK_REWARD}: money=${player.money}`);
+      return null;
     },
   }),
 };

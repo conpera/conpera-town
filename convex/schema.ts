@@ -21,6 +21,19 @@ export default defineSchema({
     .index('conversationId', ['worldId', 'conversationId'])
     .index('messageUuid', ['conversationId', 'messageUuid']),
 
+  // Token usage tracking per agent
+  tokenUsage: defineTable({
+    worldId: v.id('worlds'),
+    playerId,
+    operation: v.string(), // 'startConversation' | 'continueConversation' | 'leaveConversation' | 'rememberConversation'
+    promptTokens: v.number(),
+    completionTokens: v.number(),
+    totalTokens: v.number(),
+    timestamp: v.number(),
+  })
+    .index('byPlayer', ['worldId', 'playerId', 'timestamp'])
+    .index('byWorld', ['worldId', 'timestamp']),
+
   ...agentTables,
   ...aiTownTables,
   ...engineTables,
