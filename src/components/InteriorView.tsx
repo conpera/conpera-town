@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import { Container, Graphics, Text } from '@pixi/react';
-import { Graphics as PixiGraphics, TextStyle } from 'pixi.js';
+import { Container, Graphics, Sprite, Text } from '@pixi/react';
+import { Graphics as PixiGraphics, TextStyle, Texture } from 'pixi.js';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
@@ -23,13 +23,47 @@ const BUILDING_LABELS: Record<string, { title: string; emoji: string }> = {
   workplace: { title: 'Internet Cafe', emoji: '🏢' },
 };
 
-// Colors for furniture types
+// Colors for furniture types (fallback when no sprite)
 const FURN_COLORS: Record<string, number> = {
   interact: 0x4488ff,
   work: 0x4488ff,
   decor: 0x8b6914,
   blocked: 0x666666,
 };
+
+// Map furniture names to sprite images
+const FURN_SPRITES: Record<string, string> = {
+  'Shop Counter': '/ai-town/assets/furniture/counter_long.png',
+  'Cash Register': '/ai-town/assets/furniture/computer.png',
+  'Product Shelves': '/ai-town/assets/furniture/shelf_grocery.png',
+  'Storage Crates': '/ai-town/assets/furniture/crate.png',
+  'Storage Barrels': '/ai-town/assets/furniture/barrel.png',
+  'Chair': '/ai-town/assets/furniture/chair.png',
+  'Potted Plant': '/ai-town/assets/furniture/plant.png',
+  'PC Station': '/ai-town/assets/furniture/pc_station.png',
+  'Reception': '/ai-town/assets/furniture/reception.png',
+  'Vending Machine': '/ai-town/assets/furniture/vending.png',
+  'Water Cooler': '/ai-town/assets/furniture/water_cooler.png',
+  'Counter': '/ai-town/assets/furniture/counter.png',
+  'Shelf': '/ai-town/assets/furniture/shelf_books.png',
+  'Bookshelf': '/ai-town/assets/furniture/shelf_books.png',
+  'Table': '/ai-town/assets/furniture/table_long.png',
+  'Bench': '/ai-town/assets/furniture/bench.png',
+  'Bed': '/ai-town/assets/furniture/bed.png',
+  'Cabinet': '/ai-town/assets/furniture/cabinet.png',
+  'Barrel': '/ai-town/assets/furniture/barrel.png',
+  'Crate': '/ai-town/assets/furniture/crate.png',
+  'Plant': '/ai-town/assets/furniture/plant.png',
+};
+
+// Match by prefix (e.g. "PC Station 1" → "PC Station")
+function getFurnSprite(name: string): string | null {
+  if (FURN_SPRITES[name]) return FURN_SPRITES[name];
+  for (const [key, url] of Object.entries(FURN_SPRITES)) {
+    if (name.startsWith(key)) return url;
+  }
+  return null;
+}
 
 // Wall/floor colors
 const WALL_COLOR = 0x372319;
@@ -265,25 +299,33 @@ export function InteriorView({
       {/* Furniture overlay from DB */}
       <Graphics draw={drawFurniture} zIndex={103} />
 
-      {/* Furniture name labels */}
-      {scene?.furniture?.map((f: any, i: number) => (
-        <Container key={`furn-${i}`} zIndex={104}>
-          <Text
-            text={f.name}
-            style={furnLabelStyle}
-            x={offsetX + f.x * ts + 3}
-            y={offsetY + f.y * ts + 2}
-          />
-          {f.action && (
+      {/* Furniture sprites + labels */}
+      {scene?.furniture?.map((f: any, i: number) => {
+        const spriteUrl = getFurnSprite(f.name);
+        const fx = offsetX + f.x * ts;
+        const fy = offsetY + f.y * ts;
+        const fw = (f.w ?? 1) * ts;
+        const fh = (f.h ?? 1) * ts;
+        return (
+          <Container key={`furn-${i}`} zIndex={104}>
+            {spriteUrl && (
+              <Sprite
+                texture={Texture.from(spriteUrl)}
+                x={fx}
+                y={fy}
+                width={fw}
+                height={fh}
+              />
+            )}
             <Text
-              text={f.action}
-              style={furnActionStyle}
-              x={offsetX + f.x * ts + 3}
-              y={offsetY + (f.y + (f.h ?? 1)) * ts - Math.max(8, 10 * scale)}
+              text={f.name}
+              style={furnLabelStyle}
+              x={fx + 2}
+              y={fy + 1}
             />
-          )}
-        </Container>
-      ))}
+          </Container>
+        );
+      })}
 
       {/* Exit button */}
       <Graphics draw={drawExitBtn} zIndex={105} interactive pointerdown={onExit} cursor="pointer" />
