@@ -76,3 +76,35 @@ export const ENGINE_ACTION_DURATION = 30000;
 export const MAX_PATHFINDS_PER_STEP = 16;
 
 export const DEFAULT_NAME = 'Me';
+
+// ---- Economy System Constants ----
+
+// Initial values for new agents
+export const INITIAL_HUNGER = 100;
+export const INITIAL_MONEY = 100;
+
+// Hunger decreases by 1 point per this many tokens consumed
+export const TOKENS_PER_HUNGER_POINT = 100;
+
+// Hunger thresholds
+export const HUNGER_CRITICAL = 20; // Agent prioritizes buying food
+export const HUNGER_STARVING = 0;  // Agent can't do anything except seek food
+
+// Money thresholds
+export const MONEY_LOW = 20; // Agent prioritizes working
+
+// Shop: buy food to restore hunger
+export const FOOD_COST = 15;         // Money per food purchase
+export const FOOD_HUNGER_RESTORE = 30; // Hunger restored per food purchase
+
+// Workplace: earn money by working
+export const WORK_DURATION = 30_000;   // 30 seconds per work session
+export const WORK_REWARD = 25;         // Money earned per work session
+
+// Map locations for shop and workplace (tile coordinates)
+// Must be on walkable tiles (objmap value === -1)
+export const SHOP_POSITION = { x: 36, y: 22 };
+export const WORKPLACE_POSITION = { x: 16, y: 44 };
+
+// How close you need to be to interact with shop/workplace
+export const INTERACTION_DISTANCE = 1.5;

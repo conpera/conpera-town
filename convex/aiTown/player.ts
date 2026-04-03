@@ -8,6 +8,9 @@ import {
   HUMAN_IDLE_TOO_LONG,
   MAX_HUMAN_PLAYERS,
   MAX_PATHFINDS_PER_STEP,
+  INITIAL_HUNGER,
+  INITIAL_MONEY,
+  TOKENS_PER_HUNGER_POINT,
 } from '../constants';
 import { pointsEqual, pathPosition } from '../util/geometry';
 import { Game } from './game';
@@ -54,6 +57,11 @@ export const serializedPlayer = {
   position: point,
   facing: vector,
   speed: v.number(),
+
+  // Economy system (optional for backward compatibility with existing data)
+  hunger: v.optional(v.number()),        // 0-100, decreases with token usage
+  money: v.optional(v.number()),         // current money balance
+  totalTokensUsed: v.optional(v.number()), // cumulative tokens consumed
 };
 export type SerializedPlayer = ObjectType<typeof serializedPlayer>;
 
@@ -69,6 +77,11 @@ export class Player {
   facing: Vector;
   speed: number;
 
+  // Economy
+  hunger: number;
+  money: number;
+  totalTokensUsed: number;
+
   constructor(serialized: SerializedPlayer) {
     const { id, human, pathfinding, activity, lastInput, position, facing, speed } = serialized;
     this.id = parseGameId('players', id);
@@ -79,6 +92,16 @@ export class Player {
     this.position = position;
     this.facing = facing;
     this.speed = speed;
+    this.hunger = serialized.hunger ?? INITIAL_HUNGER;
+    this.money = serialized.money ?? INITIAL_MONEY;
+    this.totalTokensUsed = serialized.totalTokensUsed ?? 0;
+  }
+
+  consumeTokens(tokens: number) {
+    if (tokens <= 0) return; // guard against negative values
+    this.totalTokensUsed += tokens;
+    const hungerCost = Math.floor(tokens / TOKENS_PER_HUNGER_POINT);
+    this.hunger = Math.max(0, this.hunger - hungerCost);
   }
 
   tick(game: Game, now: number) {
@@ -222,6 +245,9 @@ export class Player {
         position,
         facing,
         speed: 0,
+        hunger: INITIAL_HUNGER,
+        money: INITIAL_MONEY,
+        totalTokensUsed: 0,
       }),
     );
     game.playerDescriptions.set(
@@ -249,7 +275,7 @@ export class Player {
   }
 
   serialize(): SerializedPlayer {
-    const { id, human, pathfinding, activity, lastInput, position, facing, speed } = this;
+    const { id, human, pathfinding, activity, lastInput, position, facing, speed, hunger, money, totalTokensUsed } = this;
     return {
       id,
       human,
@@ -259,6 +285,9 @@ export class Player {
       position,
       facing,
       speed,
+      hunger,
+      money,
+      totalTokensUsed,
     };
   }
 }

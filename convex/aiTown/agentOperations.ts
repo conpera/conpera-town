@@ -10,7 +10,16 @@ import {
 } from '../agent/conversation';
 import { assertNever } from '../util/assertNever';
 import { serializedAgent } from './agent';
-import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN } from '../constants';
+import {
+  ACTIVITIES,
+  ACTIVITY_COOLDOWN,
+  CONVERSATION_COOLDOWN,
+  HUNGER_CRITICAL,
+  MONEY_LOW,
+  SHOP_POSITION,
+  WORKPLACE_POSITION,
+  FOOD_COST,
+} from '../constants';
 import { api, internal } from '../_generated/api';
 import { sleep } from '../util/sleep';
 import { serializedPlayer } from './player';
@@ -69,13 +78,23 @@ export const agentGenerateMessage = internalAction({
       default:
         assertNever(args.type);
     }
-    const text = await completionFn(
+    const { text, usage } = await completionFn(
       ctx,
       args.worldId,
       args.conversationId as GameId<'conversations'>,
       args.playerId as GameId<'players'>,
       args.otherPlayerId as GameId<'players'>,
     );
+
+    // Record token usage
+    await ctx.runMutation(internal.aiTown.agent.recordTokenUsage, {
+      worldId: args.worldId,
+      playerId: args.playerId,
+      operation: `${args.type}Conversation`,
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+      totalTokens: usage.total_tokens,
+    });
 
     await ctx.runMutation(internal.aiTown.agent.agentSendMessage, {
       worldId: args.worldId,
@@ -103,6 +122,88 @@ export const agentDoSomething = internalAction({
     const { player, agent } = args;
     const map = new WorldMap(args.map);
     const now = Date.now();
+
+    // Economy-driven behavior: query POI positions from DB
+    const hunger = player.hunger ?? 100;
+    const money = player.money ?? 100;
+
+    const currentActivity = player.activity?.description ?? '';
+    const alreadyDoingEconomy = currentActivity.includes('heading to') || currentActivity.includes('buying') || currentActivity.includes('working');
+
+    if (!alreadyDoingEconomy && (hunger <= HUNGER_CRITICAL || money < MONEY_LOW)) {
+      // Fetch dynamic POI positions from database
+      const pois = await ctx.runQuery(internal.aiTown.agent.getActivePOIs, {
+        worldId: args.worldId,
+      });
+      const shopPos = pois.shop?.position ?? SHOP_POSITION;
+      const workPos = pois.workplace?.position ?? WORKPLACE_POSITION;
+      const foodCost = pois.shop?.config?.foodCost ?? FOOD_COST;
+
+      // Priority 1: Starving and have money → go to shop
+      if (hunger <= HUNGER_CRITICAL && money >= foodCost) {
+        console.log(`Agent ${agent.id} is hungry (${hunger}), heading to shop at (${shopPos.x},${shopPos.y})`);
+        await sleep(Math.random() * 1000);
+        await ctx.runMutation(api.aiTown.main.sendInput, {
+          worldId: args.worldId,
+          name: 'finishDoSomething',
+          args: {
+            operationId: args.operationId,
+            agentId: agent.id,
+            destination: shopPos,
+            activity: {
+              description: 'heading to the shop to buy food',
+              emoji: '🏪',
+              until: now + 60_000,
+            },
+          },
+        });
+        return;
+      }
+
+      // Priority 2: Hungry but no money → go work
+      if (hunger <= HUNGER_CRITICAL && money < foodCost) {
+        console.log(`Agent ${agent.id} is hungry and broke, heading to work at (${workPos.x},${workPos.y})`);
+        await sleep(Math.random() * 1000);
+        await ctx.runMutation(api.aiTown.main.sendInput, {
+          worldId: args.worldId,
+          name: 'finishDoSomething',
+          args: {
+            operationId: args.operationId,
+            agentId: agent.id,
+            destination: workPos,
+            activity: {
+              description: 'heading to work to earn money',
+              emoji: '🏢',
+              until: now + 60_000,
+            },
+          },
+        });
+        return;
+      }
+
+      // Priority 3: Low on money → go work sometimes
+      if (money < MONEY_LOW && Math.random() < 0.5) {
+        console.log(`Agent ${agent.id} is low on money (${money}), heading to work`);
+        await sleep(Math.random() * 1000);
+        await ctx.runMutation(api.aiTown.main.sendInput, {
+          worldId: args.worldId,
+          name: 'finishDoSomething',
+          args: {
+            operationId: args.operationId,
+            agentId: agent.id,
+            destination: workPos,
+            activity: {
+              description: 'heading to work to earn money',
+              emoji: '🏢',
+              until: now + 60_000,
+            },
+          },
+        });
+        return;
+      }
+    }
+
+    // Normal behavior below (original logic)
     // Don't try to start a new conversation if we were just in one.
     const justLeftConversation =
       agent.lastConversation && now < agent.lastConversation + CONVERSATION_COOLDOWN;

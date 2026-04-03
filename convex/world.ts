@@ -255,3 +255,20 @@ export const previousConversation = query({
     return null;
   },
 });
+
+// Economy: Get token usage stats for a player
+export const tokenUsageStats = query({
+  args: {
+    worldId: v.id('worlds'),
+    playerId,
+  },
+  handler: async (ctx, args) => {
+    const records = await ctx.db
+      .query('tokenUsage')
+      .withIndex('byPlayer', (q) => q.eq('worldId', args.worldId).eq('playerId', args.playerId))
+      .order('desc')
+      .take(50);
+    const total = records.reduce((sum, r) => sum + r.totalTokens, 0);
+    return { total, records };
+  },
+});

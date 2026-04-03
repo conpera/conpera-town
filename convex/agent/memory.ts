@@ -65,23 +65,27 @@ export async function rememberConversation(
   const description = `Conversation with ${otherPlayer.name} at ${new Date(
     data.conversation._creationTime,
   ).toLocaleString()}: ${content}`;
-  const importance = await calculateImportance(description);
-  const { embedding } = await fetchEmbedding(description);
-  authors.delete(player.id as GameId<'players'>);
-  await ctx.runMutation(selfInternal.insertMemory, {
-    agentId,
-    playerId: player.id,
-    description,
-    importance,
-    lastAccess: messages[messages.length - 1]._creationTime,
-    data: {
-      type: 'conversation',
-      conversationId,
-      playerIds: [...authors],
-    },
-    embedding,
-  });
-  await reflectOnMemories(ctx, worldId, playerId);
+  try {
+    const importance = await calculateImportance(description);
+    const { embedding } = await fetchEmbedding(description);
+    authors.delete(player.id as GameId<'players'>);
+    await ctx.runMutation(selfInternal.insertMemory, {
+      agentId,
+      playerId: player.id,
+      description,
+      importance,
+      lastAccess: messages[messages.length - 1]._creationTime,
+      data: {
+        type: 'conversation',
+        conversationId,
+        playerIds: [...authors],
+      },
+      embedding,
+    });
+    await reflectOnMemories(ctx, worldId, playerId);
+  } catch (e) {
+    console.warn(`Failed to store memory embedding, skipping memory storage: ${e}`);
+  }
   return description;
 }
 

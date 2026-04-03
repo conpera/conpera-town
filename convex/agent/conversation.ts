@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { Id } from '../_generated/dataModel';
 import { ActionCtx, internalQuery } from '../_generated/server';
-import { LLMMessage, chatCompletion } from '../util/llm';
+import { LLMMessage, TokenUsage, chatCompletion } from '../util/llm';
 import * as memory from './memory';
 import { api, internal } from '../_generated/api';
 import * as embeddingsCache from './embeddingsCache';
@@ -16,7 +16,7 @@ export async function startConversationMessage(
   conversationId: GameId<'conversations'>,
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
-): Promise<string> {
+): Promise<{ text: string; usage: TokenUsage }> {
   const { player, otherPlayer, agent, otherAgent, lastConversation } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
@@ -26,17 +26,22 @@ export async function startConversationMessage(
       conversationId,
     },
   );
-  const embedding = await embeddingsCache.fetch(
-    ctx,
-    `${player.name} is talking to ${otherPlayer.name}`,
-  );
-
-  const memories = await memory.searchMemories(
-    ctx,
-    player.id as GameId<'players'>,
-    embedding,
-    Number(process.env.NUM_MEMORIES_TO_SEARCH) || NUM_MEMORIES_TO_SEARCH,
-  );
+  // Try to fetch memories, but gracefully degrade if embeddings fail
+  let memories: memory.Memory[] = [];
+  try {
+    const embedding = await embeddingsCache.fetch(
+      ctx,
+      `${player.name} is talking to ${otherPlayer.name}`,
+    );
+    memories = await memory.searchMemories(
+      ctx,
+      player.id as GameId<'players'>,
+      embedding,
+      Number(process.env.NUM_MEMORIES_TO_SEARCH) || NUM_MEMORIES_TO_SEARCH,
+    );
+  } catch (e) {
+    console.warn(`Failed to fetch memories for ${player.name}, continuing without: ${e}`);
+  }
 
   const memoryWithOtherPlayer = memories.find(
     (m) => m.data.type === 'conversation' && m.data.playerIds.includes(otherPlayerId),
@@ -53,19 +58,22 @@ export async function startConversationMessage(
     );
   }
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
-  prompt.push(lastPrompt);
 
-  const { content } = await chatCompletion({
+  const { content, usage } = await chatCompletion({
     messages: [
       {
         role: 'system',
         content: prompt.join('\n'),
       },
+      {
+        role: 'user',
+        content: lastPrompt,
+      },
     ],
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
   });
-  return trimContentPrefx(content, lastPrompt);
+  return { text: trimContentPrefx(content, lastPrompt), usage };
 }
 
 function trimContentPrefx(content: string, prompt: string) {
@@ -81,7 +89,7 @@ export async function continueConversationMessage(
   conversationId: GameId<'conversations'>,
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
-): Promise<string> {
+): Promise<{ text: string; usage: TokenUsage }> {
   const { player, otherPlayer, conversation, agent, otherAgent } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
@@ -93,11 +101,16 @@ export async function continueConversationMessage(
   );
   const now = Date.now();
   const started = new Date(conversation.created);
-  const embedding = await embeddingsCache.fetch(
-    ctx,
-    `What do you think about ${otherPlayer.name}?`,
-  );
-  const memories = await memory.searchMemories(ctx, player.id as GameId<'players'>, embedding, 3);
+  let memories: memory.Memory[] = [];
+  try {
+    const embedding = await embeddingsCache.fetch(
+      ctx,
+      `What do you think about ${otherPlayer.name}?`,
+    );
+    memories = await memory.searchMemories(ctx, player.id as GameId<'players'>, embedding, 3);
+  } catch (e) {
+    console.warn(`Failed to fetch memories for ${player.name}, continuing without: ${e}`);
+  }
   const prompt = [
     `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}.`,
     `The conversation started at ${started.toLocaleString()}. It's now ${now.toLocaleString()}.`,
@@ -125,12 +138,12 @@ export async function continueConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await chatCompletion({
+  const { content, usage } = await chatCompletion({
     messages: llmMessages,
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
   });
-  return trimContentPrefx(content, lastPrompt);
+  return { text: trimContentPrefx(content, lastPrompt), usage };
 }
 
 export async function leaveConversationMessage(
@@ -139,7 +152,7 @@ export async function leaveConversationMessage(
   conversationId: GameId<'conversations'>,
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
-): Promise<string> {
+): Promise<{ text: string; usage: TokenUsage }> {
   const { player, otherPlayer, conversation, agent, otherAgent } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
@@ -174,12 +187,12 @@ export async function leaveConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await chatCompletion({
+  const { content, usage } = await chatCompletion({
     messages: llmMessages,
     max_tokens: 300,
     stop: stopWords(otherPlayer.name, player.name),
   });
-  return trimContentPrefx(content, lastPrompt);
+  return { text: trimContentPrefx(content, lastPrompt), usage };
 }
 
 function agentPrompts(

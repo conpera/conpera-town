@@ -4,7 +4,7 @@ const OPENAI_EMBEDDING_DIMENSION = 1536;
 const TOGETHER_EMBEDDING_DIMENSION = 768;
 const OLLAMA_EMBEDDING_DIMENSION = 1024;
 
-export const EMBEDDING_DIMENSION: number = OLLAMA_EMBEDDING_DIMENSION;
+export const EMBEDDING_DIMENSION: number = OPENAI_EMBEDDING_DIMENSION;
 
 export function detectMismatchedLLMProvider() {
   switch (EMBEDDING_DIMENSION) {
@@ -51,7 +51,7 @@ export function getLLMConfig(): LLMConfig {
     }
     return {
       provider: 'openai',
-      url: 'https://api.openai.com',
+      url: process.env.OPENAI_API_BASE ?? 'https://api.openai.com',
       chatModel: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o-mini',
       embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
       stopWords: [],
@@ -116,6 +116,12 @@ const AuthHeaders = (): Record<string, string> =>
       }
     : {};
 
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 // Overload for non-streaming
 export async function chatCompletion(
   body: Omit<CreateChatCompletionRequest, 'model'> & {
@@ -123,7 +129,7 @@ export async function chatCompletion(
   } & {
     stream?: false | null | undefined;
   },
-): Promise<{ content: string; retries: number; ms: number }>;
+): Promise<{ content: string; retries: number; ms: number; usage: TokenUsage }>;
 // Overload for streaming
 export async function chatCompletion(
   body: Omit<CreateChatCompletionRequest, 'model'> & {
@@ -131,7 +137,7 @@ export async function chatCompletion(
   } & {
     stream?: true;
   },
-): Promise<{ content: ChatCompletionContent; retries: number; ms: number }>;
+): Promise<{ content: ChatCompletionContent; retries: number; ms: number; usage: TokenUsage }>;
 export async function chatCompletion(
   body: Omit<CreateChatCompletionRequest, 'model'> & {
     model?: CreateChatCompletionRequest['model'];
@@ -142,23 +148,37 @@ export async function chatCompletion(
   const stopWords = body.stop ? (typeof body.stop === 'string' ? [body.stop] : body.stop) : [];
   if (config.stopWords) stopWords.push(...config.stopWords);
   console.log(body);
+  let usage: TokenUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+  // Only send standard OpenAI fields to avoid API compatibility issues
+  const requestBody = {
+    model: body.model,
+    messages: body.messages,
+    ...(body.max_tokens && { max_tokens: body.max_tokens }),
+    ...(body.temperature != null && { temperature: body.temperature }),
+    ...(body.top_p != null && { top_p: body.top_p }),
+    ...(stopWords.length > 0 && { stop: stopWords }),
+    ...(body.stream && { stream: body.stream }),
+  };
   const {
     result: content,
     retries,
     ms,
   } = await retryWithBackoff(async () => {
-    const result = await fetch(config.url + '/v1/chat/completions', {
+    const fetchUrl = config.url + '/v1/chat/completions';
+    const fetchBody = JSON.stringify(requestBody);
+    const result = await fetch(fetchUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'ai-town/1.0',
         ...AuthHeaders(),
       },
 
-      body: JSON.stringify(body),
+      body: fetchBody,
     });
     if (!result.ok) {
       const error = await result.text();
-      console.error({ error });
+      console.error(`[LLM] Error ${result.status}: ${error.substring(0, 200)}`);
       if (result.status === 404 && config.provider === 'ollama') {
         await tryPullOllama(body.model!, error);
       }
@@ -175,6 +195,13 @@ export async function chatCompletion(
       if (content === undefined) {
         throw new Error('Unexpected result from OpenAI: ' + JSON.stringify(json));
       }
+      if (json.usage) {
+        usage = {
+          prompt_tokens: json.usage.prompt_tokens,
+          completion_tokens: json.usage.completion_tokens,
+          total_tokens: json.usage.total_tokens,
+        };
+      }
       console.log(content);
       return content;
     }
@@ -184,6 +211,7 @@ export async function chatCompletion(
     content,
     retries,
     ms,
+    usage,
   };
 }
 
@@ -221,6 +249,7 @@ export async function fetchEmbeddingBatch(texts: string[]) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'ai-town/1.0',
         ...AuthHeaders(),
       },
 
@@ -263,6 +292,7 @@ export async function fetchModeration(content: string) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'ai-town/1.0',
         ...AuthHeaders(),
       },
 

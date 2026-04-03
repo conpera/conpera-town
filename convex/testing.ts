@@ -178,12 +178,53 @@ export const testEmbedding = internalAction({
 export const testCompletion = internalAction({
   args: {},
   handler: async (ctx, args) => {
-    return await chatCompletion({
-      messages: [
-        { content: 'You are helpful', role: 'system' },
-        { content: 'Where is pizza?', role: 'user' },
-      ],
+    const config = (await import('./util/llm')).getLLMConfig();
+    const url = config.url + '/v1/chat/completions';
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + config.apiKey,
+    };
+
+    // Test: system alone with max_tokens
+    const body1 = JSON.stringify({
+      model: 'gpt-5.4',
+      messages: [{ role: 'system', content: 'You are Lucky.' }],
+      max_tokens: 300,
     });
+    const r1 = await fetch(url, { method: 'POST', headers, body: body1 });
+    console.log('Test system+max_tokens:', r1.status);
+
+    // Test: developer role instead of system
+    const body2 = JSON.stringify({
+      model: 'gpt-5.4',
+      messages: [{ role: 'developer', content: 'You are Lucky.' }],
+      max_tokens: 300,
+    });
+    const r2 = await fetch(url, { method: 'POST', headers, body: body2 });
+    console.log('Test developer role:', r2.status);
+
+    // Test: system + user combined
+    const body3 = JSON.stringify({
+      model: 'gpt-5.4',
+      messages: [
+        { role: 'system', content: 'You are Lucky.' },
+        { role: 'user', content: 'Say hi' },
+      ],
+      max_tokens: 300,
+    });
+    const r3 = await fetch(url, { method: 'POST', headers, body: body3 });
+    console.log('Test system+user:', r3.status);
+
+    // Test: user only
+    const body4 = JSON.stringify({
+      model: 'gpt-5.4',
+      messages: [{ role: 'user', content: 'You are Lucky. Say hi to Bob.' }],
+      max_tokens: 300,
+    });
+    const r4 = await fetch(url, { method: 'POST', headers, body: body4 });
+    console.log('Test user only:', r4.status);
+
+    return { system_max: r1.status, developer: r2.status, system_user: r3.status, user_only: r4.status };
   },
 });
 

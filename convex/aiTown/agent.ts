@@ -15,6 +15,7 @@ import {
   MESSAGE_COOLDOWN,
   MIDPOINT_THRESHOLD,
   PLAYER_CONVERSATION_COOLDOWN,
+  HUNGER_CRITICAL,
 } from '../constants';
 import { FunctionArgs } from 'convex/server';
 import { MutationCtx, internalMutation, internalQuery } from '../_generated/server';
@@ -29,6 +30,7 @@ export class Agent {
   toRemember?: GameId<'conversations'>;
   lastConversation?: number;
   lastInviteAttempt?: number;
+  lastEconomyAction?: number;
   inProgressOperation?: {
     name: string;
     operationId: string;
@@ -46,6 +48,7 @@ export class Agent {
         : undefined;
     this.lastConversation = lastConversation;
     this.lastInviteAttempt = lastInviteAttempt;
+    this.lastEconomyAction = serialized.lastEconomyAction;
     this.inProgressOperation = inProgressOperation;
   }
 
@@ -62,6 +65,24 @@ export class Agent {
       console.log(`Timing out ${JSON.stringify(this.inProgressOperation)}`);
       delete this.inProgressOperation;
     }
+    // Economy: if starving (hunger=0), skip conversations and force economy action
+    if (player.hunger <= 0) {
+      const doingEconomy = player.activity?.description?.includes('heading to') ||
+        player.activity?.description?.includes('buying') ||
+        player.activity?.description?.includes('working');
+      if (!doingEconomy) {
+        // Force the agent to do something about their hunger via agentDoSomething
+        this.startOperation(game, now, 'agentDoSomething', {
+          worldId: game.worldId,
+          player: player.serialize(),
+          otherFreePlayers: [],
+          agent: this.serialize(),
+          map: game.worldMap.serialize(),
+        });
+      }
+      return; // Skip all social behavior when starving
+    }
+
     const conversation = game.world.playerConversation(player);
     const member = conversation?.participants.get(player.id);
 
@@ -263,6 +284,7 @@ export class Agent {
       toRemember: this.toRemember,
       lastConversation: this.lastConversation,
       lastInviteAttempt: this.lastInviteAttempt,
+      lastEconomyAction: this.lastEconomyAction,
       inProgressOperation: this.inProgressOperation,
     };
   }
@@ -274,6 +296,7 @@ export const serializedAgent = {
   toRemember: v.optional(conversationId),
   lastConversation: v.optional(v.number()),
   lastInviteAttempt: v.optional(v.number()),
+  lastEconomyAction: v.optional(v.number()),
   inProgressOperation: v.optional(
     v.object({
       name: v.string(),
@@ -330,6 +353,53 @@ export const agentSendMessage = internalMutation({
       leaveConversation: args.leaveConversation,
       operationId: args.operationId,
     });
+  },
+});
+
+export const recordTokenUsage = internalMutation({
+  args: {
+    worldId: v.id('worlds'),
+    playerId,
+    operation: v.string(),
+    promptTokens: v.number(),
+    completionTokens: v.number(),
+    totalTokens: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Insert detailed token usage record
+    await ctx.db.insert('tokenUsage', {
+      worldId: args.worldId,
+      playerId: args.playerId,
+      operation: args.operation,
+      promptTokens: args.promptTokens,
+      completionTokens: args.completionTokens,
+      totalTokens: args.totalTokens,
+      timestamp: Date.now(),
+    });
+
+    // Send an input to the engine to update player economy state
+    // (can't patch world doc directly — engine replaces it each step)
+    await insertInput(ctx, args.worldId, 'agentConsumeTokens', {
+      playerId: args.playerId,
+      totalTokens: args.totalTokens,
+    });
+  },
+});
+
+// Query POI positions from DB for agent decision-making
+export const getActivePOIs = internalQuery({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx, args) => {
+    const pois = await ctx.db
+      .query('pointsOfInterest')
+      .withIndex('byWorld', (q) => q.eq('worldId', args.worldId).eq('active', true))
+      .collect();
+    // Build a lookup map: type -> { position, config }
+    const result: Record<string, { position: { x: number; y: number }; config: any }> = {};
+    for (const poi of pois) {
+      result[poi.type] = { position: poi.position, config: poi.config };
+    }
+    return result;
   },
 });
 
