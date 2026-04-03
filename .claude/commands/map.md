@@ -91,7 +91,7 @@ WORLD_ID=$(npx convex run --no-push world:defaultWorldStatus '{}' 2>&1 | grep -o
 | `perceive` | `scene:perceiveRoom` | `{"worldId":"$WORLD_ID","sceneName":"..."}` |
 | `feed P AMT` | `map:adjustHunger` | `{"worldId":"$WORLD_ID","playerId":"P","amount":AMT}` |
 | `pay P AMT` | `map:adjustMoney` | `{"worldId":"$WORLD_ID","playerId":"P","amount":AMT}` |
-| `reset-economy` | `map:resetEconomy` | `{"worldId":"$WORLD_ID"}` |
+| `reset-economy` | `map:resetEconomy` | `{"worldId":"$WORLD_ID","hunger":100,"money":200}` |
 | `block X Y` | `map:setTileBlocked` | `{"worldId":"$WORLD_ID","x":X,"y":Y,"blocked":true}` |
 | `unblock X Y` | `map:setTileBlocked` | `{"worldId":"$WORLD_ID","x":X,"y":Y,"blocked":false}` |
 | `building-collision` | `map:setBuildingCollision` | `{"worldId":"$WORLD_ID","x":X,"y":Y,"blocked":true}` |
@@ -100,7 +100,7 @@ WORLD_ID=$(npx convex run --no-push world:defaultWorldStatus '{}' 2>&1 | grep -o
 
 **Format:** Always use `npx convex run --no-push <function> '<json_args>'`
 
-**Note:** `perceiveRoom` is an internal query — run via `npx convex run --no-push scene:perceiveRoom`.
+**Note:** `perceiveRoom` is a public query — run via `npx convex run --no-push scene:perceiveRoom`.
 
 ## Editor Workflow
 

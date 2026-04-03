@@ -21,6 +21,22 @@ var ContextCreate = (function(){
         this.fudgetiles = [];
         this.g_layers = []; // level layers
 
+        // Scene mode state
+        this.sceneMode = false;
+        this.sceneName = '';
+        this.sceneDisplayName = '';
+        this.sceneWidth = 10;       // tiles
+        this.sceneHeight = 8;       // tiles
+        this.furniture = [];        // [{id, name, type, x, y, w, h, action, config}]
+        this.spawnPoint = null;     // {x, y}
+        this.exitPoint = null;      // {x, y}
+        this.collisionOverlay = false;
+        this.furnitureMode = false;
+        this.selectedFurnitureTemplate = null;
+        this.spawnMode = false;     // placing spawn point
+        this.exitMode = false;      // placing exit point
+        this.convexUrl = '';
+        this.worldId = '';
     }
 
     var instance;

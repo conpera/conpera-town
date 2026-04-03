@@ -39,10 +39,12 @@
 
 import * as PIXI from 'pixi.js'
 import { g_ctx }  from './lecontext.js' // global context
-import * as CONFIG from './leconfig.js' 
+import * as CONFIG from './leconfig.js'
 import * as UNDO from './undo.js'
 import * as MAPFILE from './mapfile.js'
 import * as UI from './lehtmlui.js'
+import * as FURNITURE from './lefurniture.js'
+import * as CONVEX from './leconvex.js'
 import { EventSystem } from '@pixi/events';
 
 g_ctx.debug_flag  = true;
@@ -559,8 +561,16 @@ window.addEventListener(
         }
         else if (event.code == 'KeyM'){
             g_ctx.g_layers.map((l) => l.drawFilter () );
-        }else if (event.code == 'KeyP'){
+        }else if (event.code == 'KeyC'){
+            window.toggleCollision();
+        }else if (event.code == 'KeyB'){
+            window.toggleFurnitureMode();
+        }else if (event.code == 'KeyP' && g_ctx.sceneMode){
+            window.toggleSpawnMode();
+        }else if (event.code == 'KeyP' && !g_ctx.sceneMode){
             setGridSize((g_ctx.tiledimx == 16)?32:16);
+        }else if (event.code == 'KeyE' && g_ctx.sceneMode){
+            window.toggleExitMode();
         }
         else if (event.code == 'KeyG'){
             g_ctx.g_layers.map((l) => redrawGrid (l, false) );
@@ -929,6 +939,53 @@ function onCompositeMousedown(layer, e) {
 
     let xorig = e.data.global.x;
     let yorig = e.data.global.y;
+    const tileX = Math.floor(xorig / g_ctx.tiledimx);
+    const tileY = Math.floor(yorig / g_ctx.tiledimy);
+
+    // Furniture placement mode
+    if (g_ctx.furnitureMode && g_ctx.selectedFurnitureTemplate) {
+        const item = FURNITURE.addFurnitureItem(g_ctx.selectedFurnitureTemplate, tileX, tileY);
+        if (item) console.log('Placed furniture:', item.name, 'at', tileX, tileY);
+        return;
+    }
+
+    // Spawn point placement mode
+    if (g_ctx.spawnMode) {
+        g_ctx.spawnPoint = { x: tileX, y: tileY };
+        const display = document.getElementById('spawn-display');
+        if (display) display.textContent = `(${tileX}, ${tileY})`;
+        g_ctx.spawnMode = false;
+        const btn = document.getElementById('spawn-btn');
+        if (btn) btn.className = '';
+        const ind = document.getElementById('mode-indicator');
+        if (ind) ind.textContent = '';
+        FURNITURE.renderAll();
+        return;
+    }
+
+    // Exit point placement mode
+    if (g_ctx.exitMode) {
+        g_ctx.exitPoint = { x: tileX, y: tileY };
+        const display = document.getElementById('exit-display');
+        if (display) display.textContent = `(${tileX}, ${tileY})`;
+        g_ctx.exitMode = false;
+        const btn = document.getElementById('exit-btn');
+        if (btn) btn.className = '';
+        const ind = document.getElementById('mode-indicator');
+        if (ind) ind.textContent = '';
+        FURNITURE.renderAll();
+        return;
+    }
+
+    // Right-click on furniture to delete
+    if (g_ctx.dkey) {
+        const furn = FURNITURE.getFurnitureAt(tileX, tileY);
+        if (furn) {
+            FURNITURE.removeFurnitureItem(furn.id);
+            console.log('Removed furniture:', furn.name);
+            return;
+        }
+    }
 
     centerLayerPanes(xorig,yorig);
 }
@@ -1356,8 +1413,8 @@ async function init() {
 
     UI.initMainHTMLWindow();
 
-    // We need to load the Tileset to know how to size things. So we block until done. 
-    await initTilesConfig(); 
+    // We need to load the Tileset to know how to size things. So we block until done.
+    await initTilesConfig();
 
     initPixiApps();
     initRadios();
@@ -1367,6 +1424,182 @@ async function init() {
     UI.initCompositePNGLoader();
     UI.initSpriteSheetLoader();
     UI.initTilesetLoader( loadMapFromModule.bind(null, g_ctx));
+
+    // Initialize furniture layer on composite
+    FURNITURE.initFurnitureLayer();
+
+    // Try to init Convex client
+    CONVEX.initClient();
 }
+
+// ─── Window functions for HTML onclick handlers ──────────
+
+window.toggleCollision = function () {
+    g_ctx.collisionOverlay = !g_ctx.collisionOverlay;
+    document.getElementById('collision-toggle').checked = g_ctx.collisionOverlay;
+    FURNITURE.drawCollisionOverlay();
+};
+
+window.toggleFurnitureMode = function () {
+    g_ctx.furnitureMode = !g_ctx.furnitureMode;
+    g_ctx.spawnMode = false;
+    g_ctx.exitMode = false;
+    const btn = document.getElementById('furniture-btn');
+    if (btn) btn.className = g_ctx.furnitureMode ? 'active-mode' : '';
+    const ind = document.getElementById('mode-indicator');
+    if (ind) ind.textContent = g_ctx.furnitureMode ? 'FURNITURE MODE' : '';
+};
+
+window.toggleSpawnMode = function () {
+    g_ctx.spawnMode = !g_ctx.spawnMode;
+    g_ctx.furnitureMode = false;
+    g_ctx.exitMode = false;
+    const btn = document.getElementById('spawn-btn');
+    if (btn) btn.className = g_ctx.spawnMode ? 'active-mode' : '';
+    const ind = document.getElementById('mode-indicator');
+    if (ind) ind.textContent = g_ctx.spawnMode ? 'CLICK TO SET SPAWN' : '';
+};
+
+window.toggleExitMode = function () {
+    g_ctx.exitMode = !g_ctx.exitMode;
+    g_ctx.furnitureMode = false;
+    g_ctx.spawnMode = false;
+    const btn = document.getElementById('exit-btn');
+    if (btn) btn.className = g_ctx.exitMode ? 'active-mode' : '';
+    const ind = document.getElementById('mode-indicator');
+    if (ind) ind.textContent = g_ctx.exitMode ? 'CLICK TO SET EXIT' : '';
+};
+
+window.enterSceneMode = function () {
+    const name = document.getElementById('scene-name')?.value || '';
+    const display = document.getElementById('scene-display')?.value || '';
+    const sizeSelect = document.getElementById('scene-size')?.value || '10,8';
+    let w, h;
+    if (sizeSelect === 'custom') {
+        w = parseInt(document.getElementById('scene-w')?.value) || 10;
+        h = parseInt(document.getElementById('scene-h')?.value) || 8;
+    } else {
+        [w, h] = sizeSelect.split(',').map(Number);
+    }
+    g_ctx.sceneMode = true;
+    g_ctx.sceneName = name;
+    g_ctx.sceneDisplayName = display;
+    g_ctx.sceneWidth = w;
+    g_ctx.sceneHeight = h;
+    FURNITURE.renderAll();
+    const m = document.getElementById('status-mode');
+    if (m) m.textContent = `Mode: Scene (${w}x${h})`;
+    const s = document.getElementById('status-scene');
+    if (s) s.textContent = `Scene: ${name || '(unnamed)'}`;
+};
+
+window.exitSceneMode = function () {
+    g_ctx.sceneMode = false;
+    FURNITURE.renderAll();
+    const m = document.getElementById('status-mode');
+    if (m) m.textContent = 'Mode: Map';
+};
+
+window.onSceneSizeChange = function () {
+    const v = document.getElementById('scene-size')?.value;
+    const custom = document.getElementById('custom-size');
+    if (custom) custom.style.display = v === 'custom' ? 'block' : 'none';
+};
+
+window.selectFurniture = function (el) {
+    // Deselect all
+    document.querySelectorAll('.furn-item').forEach((e) => e.classList.remove('selected'));
+    el.classList.add('selected');
+    const key = el.dataset.furn;
+    g_ctx.selectedFurnitureTemplate = key;
+    g_ctx.furnitureMode = true;
+    const btn = document.getElementById('furniture-btn');
+    if (btn) btn.className = 'active-mode';
+    const ind = document.getElementById('mode-indicator');
+    if (ind) ind.textContent = `PLACING: ${FURNITURE.FURNITURE_TEMPLATES[key]?.name || key}`;
+};
+
+window.addCustomFurnitureTemplate = function () {
+    const name = document.getElementById('furn-custom-name')?.value;
+    const type = document.getElementById('furn-custom-type')?.value;
+    const action = document.getElementById('furn-custom-action')?.value || null;
+    const w = parseInt(document.getElementById('furn-custom-w')?.value) || 1;
+    const h = parseInt(document.getElementById('furn-custom-h')?.value) || 1;
+    if (!name) { alert('Name required'); return; }
+    const key = name.toLowerCase().replace(/\s+/g, '_');
+    const colors = { interact: 0x4488ff, decor: 0x8b6914, blocked: 0x888888 };
+    FURNITURE.FURNITURE_TEMPLATES[key] = { name, type, w, h, action, color: colors[type] || 0xcccccc };
+    // Add to palette
+    const palette = document.getElementById('furniture-palette');
+    if (palette) {
+        const div = document.createElement('div');
+        div.className = `furn-item furn-${type}`;
+        div.dataset.furn = key;
+        div.onclick = function () { window.selectFurniture(div); };
+        div.textContent = `${name}${action ? ` (${action})` : ''}`;
+        palette.appendChild(div);
+    }
+};
+
+window.onSaveScene = async function () {
+    try {
+        const worldId = document.getElementById('convex-world-id')?.value;
+        if (!worldId) { alert('Enter World ID first'); return; }
+        g_ctx.sceneName = document.getElementById('scene-name')?.value || g_ctx.sceneName;
+        g_ctx.sceneDisplayName = document.getElementById('scene-display')?.value || g_ctx.sceneDisplayName;
+        if (!g_ctx.sceneName) { alert('Scene name required'); return; }
+        const result = await CONVEX.saveScene(worldId);
+        const out = document.getElementById('validation-output');
+        if (out) out.innerHTML = `<span class="validation-ok">Saved: ${result.name} (${result.width}x${result.height})</span>`;
+    } catch (e) {
+        alert('Save failed: ' + e.message);
+    }
+};
+
+window.onLoadSceneList = async function () {
+    try {
+        const worldId = document.getElementById('convex-world-id')?.value;
+        if (!worldId) { alert('Enter World ID first'); return; }
+        const scenes = await CONVEX.listScenes(worldId);
+        const select = document.getElementById('scene-list');
+        if (select) {
+            select.innerHTML = '<option value="">-- select --</option>';
+            for (const s of scenes) {
+                select.innerHTML += `<option value="${s.name}">${s.displayName} (${s.width}x${s.height}, ${s.furnitureCount} furniture)</option>`;
+            }
+        }
+    } catch (e) {
+        alert('Load list failed: ' + e.message);
+    }
+};
+
+window.onLoadScene = async function () {
+    try {
+        const worldId = document.getElementById('convex-world-id')?.value;
+        const sceneName = document.getElementById('scene-list')?.value;
+        if (!worldId || !sceneName) return;
+        const scene = await CONVEX.loadScene(worldId, sceneName);
+        if (scene) {
+            CONVEX.loadSceneIntoEditor(scene);
+            const out = document.getElementById('validation-output');
+            if (out) out.innerHTML = `<span class="validation-ok">Loaded: ${scene.name}</span>`;
+        }
+    } catch (e) {
+        alert('Load failed: ' + e.message);
+    }
+};
+
+window.onValidateScene = function () {
+    const { errors, warnings } = CONVEX.validateScene();
+    const out = document.getElementById('validation-output');
+    if (!out) return;
+    let html = '';
+    if (errors.length === 0 && warnings.length === 0) {
+        html = '<span class="validation-ok">All checks passed!</span>';
+    }
+    for (const e of errors) html += `<div class="validation-err">ERROR: ${e}</div>`;
+    for (const w of warnings) html += `<div style="color:#f0ad4e;">WARN: ${w}</div>`;
+    out.innerHTML = html;
+};
 
 init();

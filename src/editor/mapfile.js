@@ -244,3 +244,36 @@ export function generate_level_file() {
 
     write_map_file(tile_array0, tile_array1, tile_array2, tile_array3, animated_tiles);
 }
+
+// Generate structured scene data for Convex (no file download)
+export function generate_scene_data() {
+    const w = g_ctx.sceneMode ? g_ctx.sceneWidth : CONFIG.leveltilewidth;
+    const h = g_ctx.sceneMode ? g_ctx.sceneHeight : CONFIG.leveltileheight;
+
+    function extractLayer(layerNum) {
+        const layer = g_ctx.g_layers[layerNum];
+        const arr = Array.from(Array(w), () => new Array(h).fill(-1));
+        if (!layer) return arr;
+        for (const child of layer.container.children) {
+            if (!child.hasOwnProperty('index')) continue;
+            if (child.hasOwnProperty('animationSpeed')) continue;
+            const x = Math.floor(child.x / g_ctx.tiledimx);
+            const y = Math.floor(child.y / g_ctx.tiledimy);
+            if (x >= 0 && x < w && y >= 0 && y < h) {
+                arr[x][y] = child.index;
+            }
+        }
+        return arr;
+    }
+
+    return {
+        tilesetpath: g_ctx.tilesetpath || '/ai-town/assets/gentle-obj.png',
+        tiledim: g_ctx.tiledimx,
+        tilesetpxw: g_ctx.tilesetpxw,
+        tilesetpxh: g_ctx.tilesetpxh,
+        bgtiles: [extractLayer(0), extractLayer(1)],
+        objmap: [extractLayer(2), extractLayer(3)],
+        mapwidth: w,
+        mapheight: h,
+    };
+}
