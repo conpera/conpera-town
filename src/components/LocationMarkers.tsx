@@ -1,81 +1,108 @@
 import { useCallback } from 'react';
-import { Container, Graphics, Text } from '@pixi/react';
-import { Graphics as PixiGraphics, TextStyle } from 'pixi.js';
+import { Container, Graphics, Sprite, Text } from '@pixi/react';
+import { Graphics as PixiGraphics, TextStyle, Texture } from 'pixi.js';
 import { SHOP_POSITION, WORKPLACE_POSITION } from '../../convex/constants';
 
-const MARKER_RADIUS = 12;
+// Building sprite dimensions (pixels in source image)
+const BUILDING_WIDTH = 160;
+const BUILDING_HEIGHT = 256;
 
-function LocationMarker({
+function BuildingMarker({
   position,
-  color,
-  emoji,
   label,
+  labelColor,
+  textureUrl,
   tileDim,
 }: {
   position: { x: number; y: number };
-  color: number;
-  emoji: string;
   label: string;
+  labelColor: number;
+  textureUrl: string;
   tileDim: number;
 }) {
-  const x = (position.x + 0.5) * tileDim;
-  const y = (position.y + 0.5) * tileDim;
+  // Center the building on the tile position
+  // Scale building to ~3x3 tiles
+  const buildingScale = (tileDim * 3) / BUILDING_WIDTH;
+  const x = (position.x - 0.5) * tileDim;
+  const y = (position.y - 3) * tileDim; // offset up so door is at position
 
-  const draw = useCallback(
-    (g: PixiGraphics) => {
-      g.clear();
-      // Outer glow
-      g.beginFill(color, 0.2);
-      g.drawCircle(x, y, MARKER_RADIUS + 8);
-      g.endFill();
-      // Inner circle
-      g.beginFill(color, 0.6);
-      g.drawCircle(x, y, MARKER_RADIUS);
-      g.endFill();
-      // Border
-      g.lineStyle(2, color, 1);
-      g.drawCircle(x, y, MARKER_RADIUS);
-    },
-    [x, y, color],
-  );
+  const labelX = (position.x + 0.5) * tileDim;
+  const labelY = (position.y + 1.2) * tileDim;
 
   const labelStyle = new TextStyle({
-    fontSize: 10,
+    fontSize: 11,
     fill: 0xffffff,
     fontWeight: 'bold',
     dropShadow: true,
     dropShadowColor: 0x000000,
     dropShadowDistance: 1,
+    dropShadowBlur: 2,
+    align: 'center',
   });
 
-  const emojiStyle = new TextStyle({
-    fontSize: 14,
-  });
+  // Draw a subtle ground shadow
+  const drawShadow = useCallback(
+    (g: PixiGraphics) => {
+      g.clear();
+      const cx = (position.x + 0.5) * tileDim;
+      const cy = (position.y + 0.3) * tileDim;
+      g.beginFill(0x000000, 0.15);
+      g.drawEllipse(cx, cy, tileDim * 1.5, tileDim * 0.4);
+      g.endFill();
+    },
+    [position, tileDim],
+  );
+
+  // Draw label background
+  const drawLabelBg = useCallback(
+    (g: PixiGraphics) => {
+      g.clear();
+      const w = label.length * 7 + 12;
+      g.beginFill(labelColor, 0.85);
+      g.drawRoundedRect(labelX - w / 2, labelY - 2, w, 16, 4);
+      g.endFill();
+    },
+    [labelX, labelY, label, labelColor],
+  );
 
   return (
-    <Container>
-      <Graphics draw={draw} />
-      <Text text={emoji} style={emojiStyle} x={x - 7} y={y - 8} />
-      <Text text={label} style={labelStyle} x={x - label.length * 3} y={y + MARKER_RADIUS + 2} />
+    <Container sortableChildren>
+      <Graphics draw={drawShadow} zIndex={0} />
+      <Sprite
+        texture={Texture.from(textureUrl)}
+        x={x}
+        y={y}
+        width={BUILDING_WIDTH * buildingScale}
+        height={BUILDING_HEIGHT * buildingScale}
+        zIndex={1}
+      />
+      <Graphics draw={drawLabelBg} zIndex={2} />
+      <Text
+        text={label}
+        style={labelStyle}
+        x={labelX - (label.length * 3.5)}
+        y={labelY}
+        zIndex={3}
+      />
     </Container>
   );
 }
 
 export function LocationMarkers({ tileDim }: { tileDim: number }) {
   return (
-    <Container>
-      <LocationMarker
+    <Container sortableChildren>
+      <BuildingMarker
         position={SHOP_POSITION}
-        color={0x00cc00}
-        emoji="🏪"
-        label="Shop"
+        label="SHOP"
+        labelColor={0xcc6600}
+        textureUrl="/ai-town/assets/shop.png"
         tileDim={tileDim}
       />
-      <LocationMarker
+      <BuildingMarker
         position={WORKPLACE_POSITION}
-        color={0x3366ff}
-        emoji="🏢"
-        label="Work"
+        label="WORK"
+        labelColor={0x336633}
+        textureUrl="/ai-town/assets/workplace.png"
         tileDim={tileDim}
       />
     </Container>
