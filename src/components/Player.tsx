@@ -11,7 +11,10 @@ import { PlayerDescription } from '../../convex/aiTown/playerDescription.ts';
 import { WorldMap } from '../../convex/aiTown/worldMap.ts';
 import { ServerGame } from '../hooks/serverGame.ts';
 
-export type SelectElement = (element?: { kind: 'player'; id: GameId<'players'> }) => void;
+export type SelectElement = (element?:
+  | { kind: 'player'; id: GameId<'players'> }
+  | { kind: 'building'; name: string }
+) => void;
 
 const logged = new Set<string>();
 

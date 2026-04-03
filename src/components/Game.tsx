@@ -5,6 +5,7 @@ import { useElementSize } from 'usehooks-ts';
 import { Stage } from '@pixi/react';
 import { ConvexProvider, useConvex, useQuery } from 'convex/react';
 import PlayerDetails from './PlayerDetails.tsx';
+import BuildingDetails from './BuildingDetails.tsx';
 import { api } from '../../convex/_generated/api';
 import { useWorldHeartbeat } from '../hooks/useWorldHeartbeat.ts';
 import { useHistoricalTime } from '../hooks/useHistoricalTime.ts';
@@ -16,10 +17,10 @@ export const SHOW_DEBUG_UI = !!import.meta.env.VITE_SHOW_DEBUG_UI;
 
 export default function Game() {
   const convex = useConvex();
-  const [selectedElement, setSelectedElement] = useState<{
-    kind: 'player';
-    id: GameId<'players'>;
-  }>();
+  const [selectedElement, setSelectedElement] = useState<
+    | { kind: 'player'; id: GameId<'players'> }
+    | { kind: 'building'; name: string }
+  >();
   const [gameWrapperRef, { width, height }] = useElementSize();
 
   const worldStatus = useQuery(api.world.defaultWorldStatus);
@@ -70,14 +71,23 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
           className="flex flex-col overflow-y-auto shrink-0 px-4 py-6 sm:px-6 lg:w-96 xl:pr-6 border-t-8 sm:border-t-0 sm:border-l-8 border-brown-900  bg-brown-800 text-brown-100"
           ref={scrollViewRef}
         >
-          <PlayerDetails
-            worldId={worldId}
-            engineId={engineId}
-            game={game}
-            playerId={selectedElement?.id}
-            setSelectedElement={setSelectedElement}
-            scrollViewRef={scrollViewRef}
-          />
+          {selectedElement?.kind === 'building' ? (
+            <BuildingDetails
+              worldId={worldId}
+              buildingName={selectedElement.name}
+              game={game}
+              setSelectedElement={setSelectedElement}
+            />
+          ) : (
+            <PlayerDetails
+              worldId={worldId}
+              engineId={engineId}
+              game={game}
+              playerId={selectedElement?.kind === 'player' ? selectedElement.id : undefined}
+              setSelectedElement={setSelectedElement}
+              scrollViewRef={scrollViewRef}
+            />
+          )}
         </div>
       </div>
     </>
